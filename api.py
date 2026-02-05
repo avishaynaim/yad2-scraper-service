@@ -31,8 +31,12 @@ def index():
         "endpoints": {
             "/listings": "GET - List all active listings with filters",
             "/listings/<id>": "GET - Get single listing by ID",
+            "/listings/<id>/price-history": "GET - Get price history for a listing",
+            "/price-changes": "GET - Get recent price changes across all listings",
             "/stats": "GET - Get database statistics",
             "/runs": "GET - Get scrape run history",
+            "/cities": "GET - List all cities",
+            "/neighborhoods": "GET - List neighborhoods (optional city filter)",
             "/health": "GET - Health check"
         }
     })
@@ -89,6 +93,18 @@ def stats():
         ORDER BY rooms
     """)
     stats["rooms_distribution"] = [dict(r) for r in cur.fetchall()]
+
+    # Price history stats
+    cur.execute("""
+        SELECT
+            COUNT(*) as total_price_records,
+            COUNT(DISTINCT listing_id) as listings_with_history,
+            COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '24 hours') as changes_last_24h,
+            COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days') as changes_last_7d
+        FROM price_history
+    """)
+    price_stats = dict(cur.fetchone())
+    stats["price_history"] = price_stats
 
     cur.close()
     conn.close()
@@ -198,13 +214,150 @@ def get_listing(listing_id):
     cur.execute("SELECT * FROM listings WHERE id = %s", (listing_id,))
     listing = cur.fetchone()
 
+    if not listing:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "Listing not found"}), 404
+
+    result = dict(listing)
+
+    # Get price history count
+    cur.execute(
+        "SELECT COUNT(*) as count FROM price_history WHERE listing_id = %s",
+        (listing_id,)
+    )
+    result["price_history_count"] = cur.fetchone()["count"]
+
     cur.close()
     conn.close()
 
+    return jsonify(result)
+
+
+@app.route("/listings/<listing_id>/price-history")
+def get_listing_price_history(listing_id):
+    """Get price history for a specific listing."""
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Check if listing exists
+    cur.execute("SELECT id, city, street, neighborhood FROM listings WHERE id = %s", (listing_id,))
+    listing = cur.fetchone()
+
     if not listing:
+        cur.close()
+        conn.close()
         return jsonify({"error": "Listing not found"}), 404
 
-    return jsonify(dict(listing))
+    # Get price history
+    cur.execute("""
+        SELECT price, price_numeric, recorded_at, scrape_run_id
+        FROM price_history
+        WHERE listing_id = %s
+        ORDER BY recorded_at ASC
+    """, (listing_id,))
+
+    history = [dict(r) for r in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "listing_id": listing_id,
+        "city": listing["city"],
+        "street": listing["street"],
+        "neighborhood": listing["neighborhood"],
+        "price_changes": len(history) - 1 if history else 0,  # First entry is initial price
+        "history": history
+    })
+
+
+@app.route("/price-changes")
+def list_price_changes():
+    """Get recent price changes across all listings."""
+    limit = min(request.args.get("limit", 100, type=int), 500)
+    offset = request.args.get("offset", 0, type=int)
+    city = request.args.get("city")
+    days = request.args.get("days", 7, type=int)  # Default last 7 days
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Build query with optional city filter
+    conditions = [
+        "ph.recorded_at > NOW() - INTERVAL '%s days'" % days
+    ]
+    params = []
+
+    if city:
+        conditions.append("l.city ILIKE %s")
+        params.append(f"%{city}%")
+
+    where_clause = " AND ".join(conditions)
+
+    # Get price changes with listing info
+    cur.execute(f"""
+        SELECT
+            ph.listing_id,
+            l.city,
+            l.street,
+            l.neighborhood,
+            l.rooms,
+            ph.price,
+            ph.price_numeric,
+            ph.recorded_at,
+            LAG(ph.price_numeric) OVER (
+                PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+            ) as previous_price
+        FROM price_history ph
+        JOIN listings l ON l.id = ph.listing_id
+        WHERE {where_clause}
+        ORDER BY ph.recorded_at DESC
+        LIMIT %s OFFSET %s
+    """, params + [limit, offset])
+
+    changes = []
+    for row in cur.fetchall():
+        r = dict(row)
+        if r["previous_price"] is not None:  # Skip initial prices
+            r["price_diff"] = r["price_numeric"] - r["previous_price"]
+            r["price_diff_percent"] = round(
+                (r["price_diff"] / r["previous_price"]) * 100, 1
+            ) if r["previous_price"] else 0
+            changes.append(r)
+
+    # Get total count of changes
+    cur.execute(f"""
+        SELECT COUNT(*) as count
+        FROM price_history ph
+        JOIN listings l ON l.id = ph.listing_id
+        WHERE {where_clause}
+    """, params)
+    total = cur.fetchone()["count"]
+
+    # Get summary stats
+    cur.execute(f"""
+        SELECT
+            COUNT(DISTINCT ph.listing_id) as listings_with_changes,
+            COUNT(*) as total_price_records
+        FROM price_history ph
+        JOIN listings l ON l.id = ph.listing_id
+        WHERE {where_clause}
+    """, params)
+    summary = dict(cur.fetchone())
+
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "days": days,
+        "count": len(changes),
+        "summary": summary,
+        "changes": changes
+    })
 
 
 @app.route("/runs")

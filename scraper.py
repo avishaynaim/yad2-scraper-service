@@ -55,7 +55,7 @@ def get_db_connection(retries=5, delay=3):
     """Get database connection with retry logic."""
     for attempt in range(retries):
         try:
-            conn = get_db_connection()
+            conn = psycopg2.connect(DATABASE_URL)
             return conn
         except psycopg2.OperationalError as e:
             if attempt < retries - 1:
@@ -70,6 +70,7 @@ def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
 
+    # Main listings table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS listings (
             id VARCHAR(50) PRIMARY KEY,
@@ -110,6 +111,23 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_listings_is_active ON listings(is_active);
     """)
 
+    # Price history table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS price_history (
+            id SERIAL PRIMARY KEY,
+            listing_id VARCHAR(50) NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+            price VARCHAR(50),
+            price_numeric INTEGER,
+            recorded_at TIMESTAMP DEFAULT NOW(),
+            scrape_run_id INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_price_history_listing ON price_history(listing_id);
+        CREATE INDEX IF NOT EXISTS idx_price_history_recorded ON price_history(recorded_at);
+        CREATE INDEX IF NOT EXISTS idx_price_history_listing_recorded ON price_history(listing_id, recorded_at DESC);
+    """)
+
+    # Scrape runs table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS scrape_runs (
             id SERIAL PRIMARY KEY,
@@ -121,6 +139,7 @@ def init_db():
             listings_found INTEGER,
             listings_new INTEGER,
             listings_updated INTEGER,
+            price_changes INTEGER DEFAULT 0,
             status VARCHAR(50) DEFAULT 'running',
             error_message TEXT
         );
@@ -132,10 +151,10 @@ def init_db():
     logger.info("Database initialized")
 
 
-def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
-    """Save listings to database. Returns (new_count, updated_count)."""
+def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
+    """Save listings to database. Returns (new_count, updated_count, price_changes)."""
     if not listings:
-        return 0, 0
+        return 0, 0, 0
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -143,6 +162,7 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
     now = datetime.now(timezone.utc)
     new_count = 0
     updated_count = 0
+    price_changes = 0
 
     for listing in listings:
         # Parse price to numeric
@@ -168,11 +188,23 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
         lat = coords.get("latitude") if coords else None
         lon = coords.get("longitude") if coords else None
 
-        # Check if exists
-        cur.execute("SELECT id FROM listings WHERE id = %s", (listing["id"],))
-        exists = cur.fetchone()
+        # Check if exists and get current price
+        cur.execute("SELECT id, price_numeric FROM listings WHERE id = %s", (listing["id"],))
+        existing = cur.fetchone()
 
-        if exists:
+        if existing:
+            old_price = existing[1]
+
+            # Check if price changed
+            if price_numeric is not None and old_price is not None and price_numeric != old_price:
+                # Record price change in history
+                cur.execute("""
+                    INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (listing["id"], price_str, price_numeric, now, run_id))
+                price_changes += 1
+                logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
+
             # Update existing
             cur.execute("""
                 UPDATE listings SET
@@ -193,7 +225,7 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
             ))
             updated_count += 1
         else:
-            # Insert new
+            # Insert new listing
             cur.execute("""
                 INSERT INTO listings (
                     id, ad_number, link_token, street, property_type,
@@ -238,11 +270,18 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
             ))
             new_count += 1
 
+            # Record initial price in history
+            if price_numeric is not None:
+                cur.execute("""
+                    INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (listing["id"], price_str, price_numeric, now, run_id))
+
     conn.commit()
     cur.close()
     conn.close()
 
-    return new_count, updated_count
+    return new_count, updated_count, price_changes
 
 
 def mark_inactive_listings(seen_ids: set[str]):
@@ -287,6 +326,7 @@ def start_scrape_run() -> int:
 def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
                        pages_failed: int, listings_found: int,
                        listings_new: int, listings_updated: int,
+                       price_changes: int = 0,
                        status: str = "completed", error: str = None):
     """Update scrape run with final stats."""
     conn = get_db_connection()
@@ -300,11 +340,12 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
             listings_found = %s,
             listings_new = %s,
             listings_updated = %s,
+            price_changes = %s,
             status = %s,
             error_message = %s
         WHERE id = %s
     """, (total_pages, pages_scraped, pages_failed, listings_found,
-          listings_new, listings_updated, status, error, run_id))
+          listings_new, listings_updated, price_changes, status, error, run_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -468,6 +509,7 @@ class Yad2Scraper:
         pages_failed = 0
         total_new = 0
         total_updated = 0
+        total_price_changes = 0
 
         try:
             # Get first page to discover total
@@ -489,9 +531,10 @@ class Yad2Scraper:
             logger.info(f"Page 1: {len(listings)} listings, total pages: {total_pages}")
 
             # Save page 1 immediately
-            new, updated = save_listings(listings, run_id)
+            new, updated, price_changes = save_listings(listings, run_id)
             total_new += new
             total_updated += updated
+            total_price_changes += price_changes
 
             # Build page queue
             remaining = list(range(2, total_pages + 1))
@@ -546,12 +589,13 @@ class Yad2Scraper:
                         pages_scraped += 1
 
                         # Save incrementally
-                        new, updated = save_listings(page_listings, run_id)
+                        new, updated, price_changes = save_listings(page_listings, run_id)
                         total_new += new
                         total_updated += updated
+                        total_price_changes += price_changes
 
                         logger.info(f"Page {page}: {len(page_listings)} listings "
-                                   f"(total: {len(all_listings)}, new: {new}, updated: {updated})")
+                                   f"(total: {len(all_listings)}, new: {new}, updated: {updated}, price_changes: {price_changes})")
 
                 remaining = next_remaining
 
@@ -562,11 +606,11 @@ class Yad2Scraper:
             final_failed = len(remaining)
             finish_scrape_run(
                 run_id, total_pages, pages_scraped, final_failed,
-                len(all_listings), total_new, total_updated, "completed"
+                len(all_listings), total_new, total_updated, total_price_changes, "completed"
             )
 
             logger.info(f"Scrape #{run_id} completed: {len(all_listings)} listings, "
-                       f"{pages_scraped}/{total_pages} pages, {total_new} new, {total_updated} updated")
+                       f"{pages_scraped}/{total_pages} pages, {total_new} new, {total_updated} updated, {total_price_changes} price changes")
 
             return {
                 "run_id": run_id,
@@ -576,6 +620,7 @@ class Yad2Scraper:
                 "listings_found": len(all_listings),
                 "listings_new": total_new,
                 "listings_updated": total_updated,
+                "price_changes": total_price_changes,
                 "status": "completed"
             }
 
@@ -583,7 +628,7 @@ class Yad2Scraper:
             logger.error(f"Scrape failed: {e}")
             finish_scrape_run(run_id, 0, pages_scraped, pages_failed,
                             len(all_listings), total_new, total_updated,
-                            "failed", str(e))
+                            total_price_changes, "failed", str(e))
             raise
 
 
