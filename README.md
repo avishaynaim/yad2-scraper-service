@@ -82,7 +82,22 @@ Or use the Procfile with Railway's process support.
 | `PAGES_PER_SESSION` | `5` | Pages before session rotation |
 | `PORT` | `8000` | API server port |
 
+## Dashboard
+
+Access the interactive dashboard at `/dashboard`:
+- **Listings table**: Filter by city, neighborhood, price range, rooms, etc.
+- **Price changes**: Track price drops and raises across all listings
+- **Scrape history**: Monitor scraper performance
+- **Cities overview**: See listings distribution by city
+- **Saved filters**: Save and load filter presets (stored in browser localStorage)
+
 ## API Endpoints
+
+### Dashboard
+```
+GET /dashboard
+```
+Interactive dashboard UI with filterable tables.
 
 ### Health Check
 ```

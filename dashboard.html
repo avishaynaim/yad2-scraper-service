@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yad2 Scraper Dashboard</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100);
+            color: var(--gray-800);
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .header-stat {
+            text-align: center;
+        }
+
+        .header-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .header-stat-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+        }
+
+        /* Main Layout */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-600);
+            transition: all 0.2s;
+            box-shadow: var(--shadow);
+        }
+
+        .tab:hover {
+            background: var(--gray-50);
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab-badge {
+            background: var(--gray-200);
+            color: var(--gray-700);
+            padding: 0.125rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+
+        .tab.active .tab-badge {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Filter Presets */
+        .filter-presets {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .preset-btn {
+            padding: 0.375rem 0.75rem;
+            background: var(--gray-100);
+            border: 1px solid var(--gray-300);
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: var(--gray-200);
+        }
+
+        .preset-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .preset-btn .delete {
+            opacity: 0.6;
+            font-weight: bold;
+        }
+
+        .preset-btn .delete:hover {
+            opacity: 1;
+            color: var(--danger);
+        }
+
+        .save-preset-btn {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+
+        .save-preset-btn:hover {
+            background: #059669;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: right;
+            border-bottom: 1px solid var(--gray-200);
+            white-space: nowrap;
+        }
+
+        th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .th-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .th-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+
+        .th-label:hover {
+            color: var(--primary);
+        }
+
+        .sort-icon {
+            font-size: 0.625rem;
+            opacity: 0.5;
+        }
+
+        .sort-icon.active {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        /* Column Filters */
+        .column-filter {
+            width: 100%;
+            padding: 0.375rem 0.5rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            background: white;
+        }
+
+        .column-filter:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        .column-filter::placeholder {
+            color: var(--gray-400);
+        }
+
+        tr:hover td {
+            background: var(--gray-50);
+        }
+
+        /* Price Change Indicators */
+        .price-up {
+            color: var(--danger);
+        }
+
+        .price-down {
+            color: var(--success);
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--gray-200);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .pagination-info {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .page-btn {
+            padding: 0.5rem 0.75rem;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: var(--gray-100);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+
+        .stat-card-label {
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+        }
+
+        .stat-card-change {
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            width: 2rem;
+            height: 2rem;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.75rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--gray-500);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-stats {
+                justify-content: center;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            th, td {
+                padding: 0.5rem 0.75rem;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .filter-presets {
+                width: 100%;
+            }
+        }
+
+        /* Links */
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal h3 {
+            margin-bottom: 1rem;
+        }
+
+        .modal input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        /* Refresh button */
+        .refresh-btn {
+            background: white;
+            color: var(--primary);
+            border: 1px solid currentColor;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .refresh-btn:hover {
+            background: var(--gray-50);
+        }
+
+        .refresh-btn.loading {
+            opacity: 0.7;
+            cursor: wait;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>📊 Yad2 Scraper Dashboard</h1>
+            <div class="header-stats" id="headerStats">
+                <div class="header-stat">
+                    <div class="header-stat-value" id="totalListings">-</div>
+                    <div class="header-stat-label">דירות פעילות</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="totalCities">-</div>
+                    <div class="header-stat-label">ערים</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="avgPrice">-</div>
+                    <div class="header-stat-label">מחיר ממוצע</div>
+                </div>
+                <div class="header-stat">
+                    <div class="header-stat-value" id="priceChanges24h">-</div>
+                    <div class="header-stat-label">שינויי מחיר (24ש)</div>
+                </div>
+            </div>
+            <button class="refresh-btn" onclick="refreshAll()">
+                🔄 רענן
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="listings">
+                <span class="tab-badge" id="listingsCount">0</span>
+                דירות
+            </button>
+            <button class="tab" data-tab="price-changes">
+                <span class="tab-badge" id="priceChangesCount">0</span>
+                שינויי מחיר
+            </button>
+            <button class="tab" data-tab="runs">
+                <span class="tab-badge" id="runsCount">0</span>
+                היסטוריית סריקות
+            </button>
+            <button class="tab" data-tab="cities">
+                <span class="tab-badge" id="citiesCount">0</span>
+                ערים
+            </button>
+        </div>
+
+        <!-- Listings Panel -->
+        <div class="panel active" id="listings-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">דירות להשכרה</h2>
+                    <div class="filter-presets">
+                        <span style="font-size: 0.75rem; color: var(--gray-500);">פילטרים שמורים:</span>
+                        <div id="listingsPresets"></div>
+                        <button class="preset-btn save-preset-btn" onclick="savePreset('listings')">
+                            💾 שמור פילטר
+                        </button>
+                        <button class="preset-btn" onclick="clearFilters('listings')">
+                            🗑️ נקה הכל
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="listingsTable">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="city">עיר <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="city" placeholder="סנן עיר...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="neighborhood">שכונה <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="neighborhood" placeholder="סנן שכונה...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="street">רחוב <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="street" placeholder="סנן רחוב...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="rooms">חדרים <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="rooms" placeholder="3-5">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="price_numeric">מחיר <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="price" placeholder="3000-8000">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="size_sqm">מ"ר <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="size_sqm" placeholder="סנן...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="floor">קומה <span class="sort-icon">▼</span></div>
+                                        <input type="text" class="column-filter" data-column="floor" placeholder="סנן...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">סוג <span class="sort-icon">▼</span></div>
+                                        <select class="column-filter" data-column="is_merchant">
+                                            <option value="">הכל</option>
+                                            <option value="false">פרטי</option>
+                                            <option value="true">תיווך</option>
+                                        </select>
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label" data-sort="first_seen_at">נוסף <span class="sort-icon">▼</span></div>
+                                    </div>
+                                </th>
+                                <th>פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listingsBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <div class="pagination-info" id="listingsPaginationInfo">מציג 0-0 מתוך 0</div>
+                    <div class="pagination-controls" id="listingsPagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Changes Panel -->
+        <div class="panel" id="price-changes-panel">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-value" id="priceChangesTotal">-</div>
+                    <div class="stat-card-label">שינויי מחיר (7 ימים)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value price-down" id="priceDrops">-</div>
+                    <div class="stat-card-label">ירידות מחיר</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value price-up" id="priceRaises">-</div>
+                    <div class="stat-card-label">עליות מחיר</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-value" id="avgPriceChange">-</div>
+                    <div class="stat-card-label">שינוי ממוצע</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">שינויי מחיר אחרונים</h2>
+                    <div class="filter-presets">
+                        <span style="font-size: 0.75rem; color: var(--gray-500);">פילטרים שמורים:</span>
+                        <div id="priceChangesPresets"></div>
+                        <button class="preset-btn save-preset-btn" onclick="savePreset('price-changes')">
+                            💾 שמור פילטר
+                        </button>
+                        <button class="preset-btn" onclick="clearFilters('price-changes')">
+                            🗑️ נקה הכל
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="priceChangesTable">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">עיר</div>
+                                        <input type="text" class="column-filter" data-column="city" placeholder="סנן עיר...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">שכונה</div>
+                                        <input type="text" class="column-filter" data-column="neighborhood" placeholder="סנן...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">רחוב</div>
+                                        <input type="text" class="column-filter" data-column="street" placeholder="סנן...">
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">חדרים</div>
+                                        <input type="text" class="column-filter" data-column="rooms" placeholder="סנן...">
+                                    </div>
+                                </th>
+                                <th>מחיר קודם</th>
+                                <th>מחיר חדש</th>
+                                <th>
+                                    <div class="th-content">
+                                        <div class="th-label">שינוי</div>
+                                        <select class="column-filter" data-column="direction">
+                                            <option value="">הכל</option>
+                                            <option value="down">ירידה</option>
+                                            <option value="up">עלייה</option>
+                                        </select>
+                                    </div>
+                                </th>
+                                <th>תאריך</th>
+                                <th>פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="priceChangesBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <div class="pagination-info" id="priceChangesPaginationInfo">מציג 0-0 מתוך 0</div>
+                    <div class="pagination-controls" id="priceChangesPagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrape Runs Panel -->
+        <div class="panel" id="runs-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">היסטוריית סריקות</h2>
+                </div>
+                <div class="table-container">
+                    <table id="runsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>התחלה</th>
+                                <th>סיום</th>
+                                <th>משך</th>
+                                <th>עמודים</th>
+                                <th>דירות</th>
+                                <th>חדשות</th>
+                                <th>עודכנו</th>
+                                <th>שינויי מחיר</th>
+                                <th>סטטוס</th>
+                            </tr>
+                        </thead>
+                        <tbody id="runsBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cities Panel -->
+        <div class="panel" id="cities-panel">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">ערים</h2>
+                    <div class="filter-presets">
+                        <input type="text" class="column-filter" id="citySearch" placeholder="חפש עיר..." style="width: 200px;">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="citiesTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>עיר</th>
+                                <th>מספר דירות</th>
+                                <th>פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="citiesBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Save Preset Modal -->
+    <div class="modal-overlay" id="presetModal">
+        <div class="modal">
+            <h3>שמור פילטר</h3>
+            <input type="text" id="presetName" placeholder="שם הפילטר...">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closePresetModal()">ביטול</button>
+                <button class="btn btn-primary" onclick="confirmSavePreset()">שמור</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000'
+            : 'https://api-production-3183.up.railway.app';
+
+        // State
+        const state = {
+            listings: { data: [], filters: {}, sort: { column: 'last_seen_at', order: 'desc' }, page: 1, limit: 50, total: 0 },
+            priceChanges: { data: [], filters: {}, page: 1, limit: 50, total: 0 },
+            runs: { data: [] },
+            cities: { data: [], filter: '' },
+            presets: JSON.parse(localStorage.getItem('yad2_presets') || '{}')
+        };
+
+        let currentPresetTable = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initTabs();
+            initFilters();
+            loadPresets();
+            refreshAll();
+        });
+
+        // Tabs
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`${tab.dataset.tab}-panel`).classList.add('active');
+                });
+            });
+        }
+
+        // Filters
+        function initFilters() {
+            // Listings filters
+            document.querySelectorAll('#listingsTable .column-filter').forEach(input => {
+                input.addEventListener('input', debounce(() => {
+                    state.listings.filters[input.dataset.column] = input.value;
+                    state.listings.page = 1;
+                    loadListings();
+                }, 300));
+            });
+
+            // Price changes filters
+            document.querySelectorAll('#priceChangesTable .column-filter').forEach(input => {
+                input.addEventListener('input', debounce(() => {
+                    state.priceChanges.filters[input.dataset.column] = input.value;
+                    state.priceChanges.page = 1;
+                    loadPriceChanges();
+                }, 300));
+            });
+
+            // Sort headers
+            document.querySelectorAll('.th-label[data-sort]').forEach(header => {
+                header.addEventListener('click', () => {
+                    const column = header.dataset.sort;
+                    if (state.listings.sort.column === column) {
+                        state.listings.sort.order = state.listings.sort.order === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        state.listings.sort.column = column;
+                        state.listings.sort.order = 'desc';
+                    }
+                    loadListings();
+                });
+            });
+
+            // City search
+            document.getElementById('citySearch').addEventListener('input', debounce((e) => {
+                state.cities.filter = e.target.value;
+                renderCities();
+            }, 300));
+        }
+
+        // API Calls
+        async function fetchAPI(endpoint, params = {}) {
+            const url = new URL(`${API_BASE}${endpoint}`);
+            Object.entries(params).forEach(([k, v]) => {
+                if (v !== undefined && v !== null && v !== '') url.searchParams.append(k, v);
+            });
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
+            return response.json();
+        }
+
+        async function loadStats() {
+            try {
+                const stats = await fetchAPI('/stats');
+                document.getElementById('totalListings').textContent = formatNumber(stats.active_listings);
+                document.getElementById('totalCities').textContent = formatNumber(stats.cities);
+                document.getElementById('avgPrice').textContent = `₪${formatNumber(stats.avg_price)}`;
+                document.getElementById('priceChanges24h').textContent = formatNumber(stats.price_history?.changes_last_24h || 0);
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        async function loadListings() {
+            const tbody = document.getElementById('listingsBody');
+            tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+
+            try {
+                const filters = state.listings.filters;
+                const params = {
+                    limit: state.listings.limit,
+                    offset: (state.listings.page - 1) * state.listings.limit,
+                    sort_by: state.listings.sort.column,
+                    sort_order: state.listings.sort.order,
+                    active_only: true
+                };
+
+                // Apply filters
+                if (filters.city) params.city = filters.city;
+                if (filters.neighborhood) params.neighborhood = filters.neighborhood;
+                if (filters.is_merchant) params.is_merchant = filters.is_merchant;
+
+                // Price range
+                if (filters.price) {
+                    const [min, max] = filters.price.split('-').map(s => parseInt(s.trim()));
+                    if (min) params.min_price = min;
+                    if (max) params.max_price = max;
+                }
+
+                // Rooms range
+                if (filters.rooms) {
+                    const [min, max] = filters.rooms.split('-').map(s => parseInt(s.trim()));
+                    if (min) params.min_rooms = min;
+                    if (max) params.max_rooms = max;
+                }
+
+                const data = await fetchAPI('/listings', params);
+                state.listings.data = data.listings;
+                state.listings.total = data.total;
+
+                document.getElementById('listingsCount').textContent = formatNumber(data.total);
+                renderListings();
+                renderPagination('listings', data.total);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="10" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function loadPriceChanges() {
+            const tbody = document.getElementById('priceChangesBody');
+            tbody.innerHTML = '<tr><td colspan="9"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+
+            try {
+                const filters = state.priceChanges.filters;
+                const params = {
+                    limit: state.priceChanges.limit,
+                    offset: (state.priceChanges.page - 1) * state.priceChanges.limit,
+                    days: 7
+                };
+
+                if (filters.city) params.city = filters.city;
+
+                const data = await fetchAPI('/price-changes', params);
+
+                // Apply client-side filters
+                let filtered = data.changes;
+                if (filters.neighborhood) {
+                    filtered = filtered.filter(c => c.neighborhood?.toLowerCase().includes(filters.neighborhood.toLowerCase()));
+                }
+                if (filters.street) {
+                    filtered = filtered.filter(c => c.street?.toLowerCase().includes(filters.street.toLowerCase()));
+                }
+                if (filters.rooms) {
+                    filtered = filtered.filter(c => c.rooms?.includes(filters.rooms));
+                }
+                if (filters.direction === 'down') {
+                    filtered = filtered.filter(c => c.price_diff < 0);
+                } else if (filters.direction === 'up') {
+                    filtered = filtered.filter(c => c.price_diff > 0);
+                }
+
+                state.priceChanges.data = filtered;
+                state.priceChanges.total = data.total;
+
+                // Update stats
+                const drops = data.changes.filter(c => c.price_diff < 0);
+                const raises = data.changes.filter(c => c.price_diff > 0);
+                const avgChange = data.changes.length > 0
+                    ? Math.round(data.changes.reduce((sum, c) => sum + c.price_diff, 0) / data.changes.length)
+                    : 0;
+
+                document.getElementById('priceChangesCount').textContent = formatNumber(data.total);
+                document.getElementById('priceChangesTotal').textContent = formatNumber(data.total);
+                document.getElementById('priceDrops').textContent = formatNumber(drops.length);
+                document.getElementById('priceRaises').textContent = formatNumber(raises.length);
+                document.getElementById('avgPriceChange').textContent = `₪${formatNumber(avgChange)}`;
+
+                renderPriceChanges();
+                renderPagination('priceChanges', filtered.length);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="9" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function loadRuns() {
+            const tbody = document.getElementById('runsBody');
+            tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+
+            try {
+                const data = await fetchAPI('/runs', { limit: 50 });
+                state.runs.data = data.runs;
+                document.getElementById('runsCount').textContent = formatNumber(data.runs.length);
+                renderRuns();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="10" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function loadCities() {
+            const tbody = document.getElementById('citiesBody');
+            tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+
+            try {
+                const data = await fetchAPI('/cities');
+                state.cities.data = data.cities;
+                document.getElementById('citiesCount').textContent = formatNumber(data.cities.length);
+                renderCities();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
+            }
+        }
+
+        // Renderers
+        function renderListings() {
+            const tbody = document.getElementById('listingsBody');
+            const listings = state.listings.data;
+
+            // Client-side filter for street, size, floor
+            let filtered = listings;
+            const filters = state.listings.filters;
+            if (filters.street) {
+                filtered = filtered.filter(l => l.street?.toLowerCase().includes(filters.street.toLowerCase()));
+            }
+            if (filters.size_sqm) {
+                filtered = filtered.filter(l => l.size_sqm?.includes(filters.size_sqm));
+            }
+            if (filters.floor) {
+                filtered = filtered.filter(l => l.floor?.includes(filters.floor));
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-state">לא נמצאו דירות</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(l => `
+                <tr>
+                    <td>${l.city || '-'}</td>
+                    <td>${l.neighborhood || '-'}</td>
+                    <td>${l.street || '-'}</td>
+                    <td>${l.rooms || '-'}</td>
+                    <td><strong>₪${formatNumber(l.price_numeric)}</strong></td>
+                    <td>${l.size_sqm || '-'}</td>
+                    <td>${l.floor || '-'}</td>
+                    <td>${l.is_merchant ? '<span class="badge badge-warning">תיווך</span>' : '<span class="badge badge-success">פרטי</span>'}</td>
+                    <td>${formatDate(l.first_seen_at)}</td>
+                    <td>
+                        <a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">צפה ביד2</a>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPriceChanges() {
+            const tbody = document.getElementById('priceChangesBody');
+            const changes = state.priceChanges.data;
+
+            if (changes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">לא נמצאו שינויי מחיר</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = changes.map(c => {
+                const isDown = c.price_diff < 0;
+                const changeClass = isDown ? 'price-down' : 'price-up';
+                const arrow = isDown ? '↓' : '↑';
+                return `
+                    <tr>
+                        <td>${c.city || '-'}</td>
+                        <td>${c.neighborhood || '-'}</td>
+                        <td>${c.street || '-'}</td>
+                        <td>${c.rooms || '-'}</td>
+                        <td>₪${formatNumber(c.previous_price)}</td>
+                        <td><strong>₪${formatNumber(c.price_numeric)}</strong></td>
+                        <td class="${changeClass}">
+                            ${arrow} ₪${formatNumber(Math.abs(c.price_diff))} (${c.price_diff_percent}%)
+                        </td>
+                        <td>${formatDateTime(c.recorded_at)}</td>
+                        <td>
+                            <a href="https://www.yad2.co.il/item/${c.listing_id}" target="_blank">צפה</a>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderRuns() {
+            const tbody = document.getElementById('runsBody');
+            const runs = state.runs.data;
+
+            if (runs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-state">אין היסטוריית סריקות</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = runs.map(r => {
+                const duration = r.finished_at && r.started_at
+                    ? formatDuration(new Date(r.finished_at) - new Date(r.started_at))
+                    : '-';
+                const statusBadge = r.status === 'completed'
+                    ? '<span class="badge badge-success">הושלם</span>'
+                    : r.status === 'running'
+                    ? '<span class="badge badge-info">רץ</span>'
+                    : '<span class="badge badge-danger">נכשל</span>';
+                return `
+                    <tr>
+                        <td>${r.id}</td>
+                        <td>${formatDateTime(r.started_at)}</td>
+                        <td>${r.finished_at ? formatDateTime(r.finished_at) : '-'}</td>
+                        <td>${duration}</td>
+                        <td>${r.pages_scraped || 0}/${r.total_pages || 0}</td>
+                        <td>${formatNumber(r.listings_found || 0)}</td>
+                        <td>${formatNumber(r.listings_new || 0)}</td>
+                        <td>${formatNumber(r.listings_updated || 0)}</td>
+                        <td>${formatNumber(r.price_changes || 0)}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderCities() {
+            const tbody = document.getElementById('citiesBody');
+            let cities = state.cities.data;
+
+            if (state.cities.filter) {
+                cities = cities.filter(c => c.city?.toLowerCase().includes(state.cities.filter.toLowerCase()));
+            }
+
+            if (cities.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">לא נמצאו ערים</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = cities.map((c, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${c.city}</td>
+                    <td>${formatNumber(c.listings_count)}</td>
+                    <td>
+                        <a href="#" onclick="filterByCity('${c.city}'); return false;">הצג דירות</a>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPagination(table, total) {
+            const st = state[table];
+            const totalPages = Math.ceil(total / st.limit);
+            const info = document.getElementById(`${table}PaginationInfo`);
+            const controls = document.getElementById(`${table}Pagination`);
+
+            const start = (st.page - 1) * st.limit + 1;
+            const end = Math.min(st.page * st.limit, total);
+            info.textContent = `מציג ${start}-${end} מתוך ${formatNumber(total)}`;
+
+            if (totalPages <= 1) {
+                controls.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            html += `<button class="page-btn" onclick="goToPage('${table}', ${st.page - 1})" ${st.page === 1 ? 'disabled' : ''}>הקודם</button>`;
+
+            const pages = getPageNumbers(st.page, totalPages);
+            pages.forEach(p => {
+                if (p === '...') {
+                    html += `<span style="padding: 0.5rem;">...</span>`;
+                } else {
+                    html += `<button class="page-btn ${p === st.page ? 'active' : ''}" onclick="goToPage('${table}', ${p})">${p}</button>`;
+                }
+            });
+
+            html += `<button class="page-btn" onclick="goToPage('${table}', ${st.page + 1})" ${st.page === totalPages ? 'disabled' : ''}>הבא</button>`;
+            controls.innerHTML = html;
+        }
+
+        function getPageNumbers(current, total) {
+            const pages = [];
+            if (total <= 7) {
+                for (let i = 1; i <= total; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                if (current > 3) pages.push('...');
+                for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+                    pages.push(i);
+                }
+                if (current < total - 2) pages.push('...');
+                pages.push(total);
+            }
+            return pages;
+        }
+
+        function goToPage(table, page) {
+            state[table].page = page;
+            if (table === 'listings') loadListings();
+            else if (table === 'priceChanges') loadPriceChanges();
+        }
+
+        // Presets
+        function loadPresets() {
+            renderPresetButtons('listings');
+            renderPresetButtons('price-changes');
+        }
+
+        function renderPresetButtons(table) {
+            const container = document.getElementById(`${table.replace('-', '')}Presets`);
+            const presets = state.presets[table] || [];
+
+            container.innerHTML = presets.map((p, i) => `
+                <button class="preset-btn" onclick="applyPreset('${table}', ${i})">
+                    ${p.name}
+                    <span class="delete" onclick="event.stopPropagation(); deletePreset('${table}', ${i})">×</span>
+                </button>
+            `).join('');
+        }
+
+        function savePreset(table) {
+            currentPresetTable = table;
+            document.getElementById('presetModal').classList.add('active');
+            document.getElementById('presetName').focus();
+        }
+
+        function closePresetModal() {
+            document.getElementById('presetModal').classList.remove('active');
+            document.getElementById('presetName').value = '';
+        }
+
+        function confirmSavePreset() {
+            const name = document.getElementById('presetName').value.trim();
+            if (!name) return;
+
+            const table = currentPresetTable;
+            const filters = table === 'listings' ? { ...state.listings.filters } : { ...state.priceChanges.filters };
+
+            if (!state.presets[table]) state.presets[table] = [];
+            state.presets[table].push({ name, filters });
+            localStorage.setItem('yad2_presets', JSON.stringify(state.presets));
+
+            closePresetModal();
+            renderPresetButtons(table);
+        }
+
+        function applyPreset(table, index) {
+            const preset = state.presets[table][index];
+            if (!preset) return;
+
+            const stateKey = table === 'price-changes' ? 'priceChanges' : table;
+            state[stateKey].filters = { ...preset.filters };
+            state[stateKey].page = 1;
+
+            // Update filter inputs
+            const tableEl = document.getElementById(`${stateKey}Table`);
+            tableEl.querySelectorAll('.column-filter').forEach(input => {
+                const col = input.dataset.column;
+                input.value = preset.filters[col] || '';
+            });
+
+            if (table === 'listings') loadListings();
+            else loadPriceChanges();
+        }
+
+        function deletePreset(table, index) {
+            state.presets[table].splice(index, 1);
+            localStorage.setItem('yad2_presets', JSON.stringify(state.presets));
+            renderPresetButtons(table);
+        }
+
+        function clearFilters(table) {
+            const stateKey = table === 'price-changes' ? 'priceChanges' : table;
+            state[stateKey].filters = {};
+            state[stateKey].page = 1;
+
+            const tableEl = document.getElementById(`${stateKey}Table`);
+            tableEl.querySelectorAll('.column-filter').forEach(input => {
+                input.value = '';
+            });
+
+            if (table === 'listings') loadListings();
+            else loadPriceChanges();
+        }
+
+        function filterByCity(city) {
+            state.listings.filters.city = city;
+            state.listings.page = 1;
+
+            document.querySelector('#listingsTable .column-filter[data-column="city"]').value = city;
+
+            document.querySelector('[data-tab="listings"]').click();
+            loadListings();
+        }
+
+        // Utilities
+        function formatNumber(num) {
+            if (num == null) return '-';
+            return num.toLocaleString('he-IL');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('he-IL');
+        }
+
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleString('he-IL', {
+                day: '2-digit', month: '2-digit', year: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        function formatDuration(ms) {
+            const mins = Math.floor(ms / 60000);
+            if (mins < 60) return `${mins} דקות`;
+            const hours = Math.floor(mins / 60);
+            return `${hours} שעות, ${mins % 60} דקות`;
+        }
+
+        function debounce(fn, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+
+        async function refreshAll() {
+            const btn = document.querySelector('.refresh-btn');
+            btn.classList.add('loading');
+            btn.textContent = '⏳ טוען...';
+
+            await Promise.all([
+                loadStats(),
+                loadListings(),
+                loadPriceChanges(),
+                loadRuns(),
+                loadCities()
+            ]);
+
+            btn.classList.remove('loading');
+            btn.textContent = '🔄 רענן';
+        }
+    </script>
+</body>
+</html>

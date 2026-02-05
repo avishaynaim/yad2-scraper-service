@@ -11,11 +11,16 @@ from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.')
 CORS(app)
+
+
+@app.route("/dashboard")
+def dashboard():
+    return send_from_directory('.', 'dashboard.html')
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -28,7 +33,9 @@ def get_db():
 def index():
     return jsonify({
         "service": "Yad2 Scraper API",
+        "dashboard": "/dashboard",
         "endpoints": {
+            "/dashboard": "GET - Interactive dashboard UI",
             "/listings": "GET - List all active listings with filters",
             "/listings/<id>": "GET - Get single listing by ID",
             "/listings/<id>/price-history": "GET - Get price history for a listing",
