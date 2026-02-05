@@ -51,9 +51,23 @@ BROWSER_PROFILES = [
 
 # ─── DATABASE ───────────────────────────────────────────────────────────────────
 
+def get_db_connection(retries=5, delay=3):
+    """Get database connection with retry logic."""
+    for attempt in range(retries):
+        try:
+            conn = get_db_connection()
+            return conn
+        except psycopg2.OperationalError as e:
+            if attempt < retries - 1:
+                logger.warning(f"DB connection failed (attempt {attempt+1}/{retries}): {e}")
+                time.sleep(delay)
+            else:
+                raise
+
+
 def init_db():
     """Initialize database tables."""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     cur.execute("""
@@ -123,7 +137,7 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int]:
     if not listings:
         return 0, 0
 
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     now = datetime.now(timezone.utc)
@@ -236,7 +250,7 @@ def mark_inactive_listings(seen_ids: set[str]):
     if not seen_ids:
         return
 
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
 
     # Mark as inactive if not seen and was previously active
@@ -258,7 +272,7 @@ def mark_inactive_listings(seen_ids: set[str]):
 
 def start_scrape_run() -> int:
     """Create a new scrape run record."""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO scrape_runs (started_at, status) VALUES (NOW(), 'running') RETURNING id"
@@ -275,7 +289,7 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
                        listings_new: int, listings_updated: int,
                        status: str = "completed", error: str = None):
     """Update scrape run with final stats."""
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
         UPDATE scrape_runs SET
