@@ -29,8 +29,14 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
+_price_history_initialized = False
+
+
 def ensure_price_history_table():
     """Create price_history table if it doesn't exist."""
+    global _price_history_initialized
+    if _price_history_initialized:
+        return
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -49,12 +55,9 @@ def ensure_price_history_table():
         conn.commit()
         cur.close()
         conn.close()
+        _price_history_initialized = True
     except Exception as e:
         print(f"Error creating price_history table: {e}")
-
-
-# Initialize tables on startup
-ensure_price_history_table()
 
 
 @app.route("/")
@@ -92,67 +95,87 @@ def health():
 
 @app.route("/stats")
 def stats():
-    conn = get_db()
-    cur = conn.cursor()
+    ensure_price_history_table()
 
-    cur.execute("""
-        SELECT
-            COUNT(*) as total_listings,
-            COUNT(*) FILTER (WHERE is_active) as active_listings,
-            COUNT(DISTINCT city) as cities,
-            COUNT(DISTINCT neighborhood) as neighborhoods,
-            MIN(price_numeric) FILTER (WHERE price_numeric > 0) as min_price,
-            MAX(price_numeric) as max_price,
-            ROUND(AVG(price_numeric) FILTER (WHERE price_numeric > 0)) as avg_price,
-            MIN(first_seen_at) as oldest_listing,
-            MAX(last_seen_at) as newest_update
-        FROM listings
-    """)
-    stats = dict(cur.fetchone())
-
-    cur.execute("""
-        SELECT city, COUNT(*) as count
-        FROM listings
-        WHERE is_active = TRUE
-        GROUP BY city
-        ORDER BY count DESC
-        LIMIT 20
-    """)
-    stats["top_cities"] = [dict(r) for r in cur.fetchall()]
-
-    cur.execute("""
-        SELECT rooms, COUNT(*) as count
-        FROM listings
-        WHERE is_active = TRUE
-        GROUP BY rooms
-        ORDER BY rooms
-    """)
-    stats["rooms_distribution"] = [dict(r) for r in cur.fetchall()]
-
-    # Price history stats (handle if table is empty or has issues)
     try:
+        conn = get_db()
+        cur = conn.cursor()
+
         cur.execute("""
             SELECT
-                COUNT(*) as total_price_records,
-                COUNT(DISTINCT listing_id) as listings_with_history,
-                COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '24 hours') as changes_last_24h,
-                COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days') as changes_last_7d
-            FROM price_history
+                COUNT(*) as total_listings,
+                COUNT(*) FILTER (WHERE is_active) as active_listings,
+                COUNT(DISTINCT city) as cities,
+                COUNT(DISTINCT neighborhood) as neighborhoods,
+                MIN(price_numeric) FILTER (WHERE price_numeric > 0) as min_price,
+                MAX(price_numeric) as max_price,
+                ROUND(AVG(price_numeric) FILTER (WHERE price_numeric > 0)) as avg_price,
+                MIN(first_seen_at) as oldest_listing,
+                MAX(last_seen_at) as newest_update
+            FROM listings
         """)
-        price_stats = dict(cur.fetchone())
-        stats["price_history"] = price_stats
-    except Exception:
-        stats["price_history"] = {
-            "total_price_records": 0,
-            "listings_with_history": 0,
-            "changes_last_24h": 0,
-            "changes_last_7d": 0
-        }
+        stats = dict(cur.fetchone())
 
-    cur.close()
-    conn.close()
+        cur.execute("""
+            SELECT city, COUNT(*) as count
+            FROM listings
+            WHERE is_active = TRUE
+            GROUP BY city
+            ORDER BY count DESC
+            LIMIT 20
+        """)
+        stats["top_cities"] = [dict(r) for r in cur.fetchall()]
 
-    return jsonify(stats)
+        cur.execute("""
+            SELECT rooms, COUNT(*) as count
+            FROM listings
+            WHERE is_active = TRUE
+            GROUP BY rooms
+            ORDER BY rooms
+        """)
+        stats["rooms_distribution"] = [dict(r) for r in cur.fetchall()]
+
+        # Price history stats (handle if table is empty or has issues)
+        try:
+            cur.execute("""
+                SELECT
+                    COUNT(*) as total_price_records,
+                    COUNT(DISTINCT listing_id) as listings_with_history,
+                    COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '24 hours') as changes_last_24h,
+                    COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days') as changes_last_7d
+                FROM price_history
+            """)
+            price_stats = dict(cur.fetchone())
+            stats["price_history"] = price_stats
+        except Exception:
+            stats["price_history"] = {
+                "total_price_records": 0,
+                "listings_with_history": 0,
+                "changes_last_24h": 0,
+                "changes_last_7d": 0
+            }
+
+        cur.close()
+        conn.close()
+
+        return jsonify(stats)
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "total_listings": 0,
+            "active_listings": 0,
+            "cities": 0,
+            "neighborhoods": 0,
+            "top_cities": [],
+            "rooms_distribution": [],
+            "price_history": {
+                "total_price_records": 0,
+                "listings_with_history": 0,
+                "changes_last_24h": 0,
+                "changes_last_7d": 0
+            }
+        }), 500
 
 
 @app.route("/listings")
