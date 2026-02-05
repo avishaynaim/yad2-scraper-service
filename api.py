@@ -29,6 +29,34 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
+def ensure_price_history_table():
+    """Create price_history table if it doesn't exist."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id SERIAL PRIMARY KEY,
+                listing_id VARCHAR(50) NOT NULL,
+                price VARCHAR(50),
+                price_numeric INTEGER,
+                recorded_at TIMESTAMP DEFAULT NOW(),
+                scrape_run_id INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_price_history_listing ON price_history(listing_id);
+            CREATE INDEX IF NOT EXISTS idx_price_history_recorded ON price_history(recorded_at);
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error creating price_history table: {e}")
+
+
+# Initialize tables on startup
+ensure_price_history_table()
+
+
 @app.route("/")
 def index():
     return jsonify({
@@ -101,17 +129,25 @@ def stats():
     """)
     stats["rooms_distribution"] = [dict(r) for r in cur.fetchall()]
 
-    # Price history stats
-    cur.execute("""
-        SELECT
-            COUNT(*) as total_price_records,
-            COUNT(DISTINCT listing_id) as listings_with_history,
-            COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '24 hours') as changes_last_24h,
-            COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days') as changes_last_7d
-        FROM price_history
-    """)
-    price_stats = dict(cur.fetchone())
-    stats["price_history"] = price_stats
+    # Price history stats (handle if table is empty or has issues)
+    try:
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_price_records,
+                COUNT(DISTINCT listing_id) as listings_with_history,
+                COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '24 hours') as changes_last_24h,
+                COUNT(*) FILTER (WHERE recorded_at > NOW() - INTERVAL '7 days') as changes_last_7d
+            FROM price_history
+        """)
+        price_stats = dict(cur.fetchone())
+        stats["price_history"] = price_stats
+    except Exception:
+        stats["price_history"] = {
+            "total_price_records": 0,
+            "listings_with_history": 0,
+            "changes_last_24h": 0,
+            "changes_last_7d": 0
+        }
 
     cur.close()
     conn.close()
@@ -229,11 +265,14 @@ def get_listing(listing_id):
     result = dict(listing)
 
     # Get price history count
-    cur.execute(
-        "SELECT COUNT(*) as count FROM price_history WHERE listing_id = %s",
-        (listing_id,)
-    )
-    result["price_history_count"] = cur.fetchone()["count"]
+    try:
+        cur.execute(
+            "SELECT COUNT(*) as count FROM price_history WHERE listing_id = %s",
+            (listing_id,)
+        )
+        result["price_history_count"] = cur.fetchone()["count"]
+    except Exception:
+        result["price_history_count"] = 0
 
     cur.close()
     conn.close()
@@ -257,14 +296,16 @@ def get_listing_price_history(listing_id):
         return jsonify({"error": "Listing not found"}), 404
 
     # Get price history
-    cur.execute("""
-        SELECT price, price_numeric, recorded_at, scrape_run_id
-        FROM price_history
-        WHERE listing_id = %s
-        ORDER BY recorded_at ASC
-    """, (listing_id,))
-
-    history = [dict(r) for r in cur.fetchall()]
+    try:
+        cur.execute("""
+            SELECT price, price_numeric, recorded_at, scrape_run_id
+            FROM price_history
+            WHERE listing_id = %s
+            ORDER BY recorded_at ASC
+        """, (listing_id,))
+        history = [dict(r) for r in cur.fetchall()]
+    except Exception:
+        history = []
 
     cur.close()
     conn.close()
@@ -290,68 +331,74 @@ def list_price_changes():
     conn = get_db()
     cur = conn.cursor()
 
-    # Build query with optional city filter
-    conditions = [
-        "ph.recorded_at > NOW() - INTERVAL '%s days'" % days
-    ]
-    params = []
+    try:
+        # Build query with optional city filter
+        conditions = [
+            "ph.recorded_at > NOW() - INTERVAL '%s days'" % days
+        ]
+        params = []
 
-    if city:
-        conditions.append("l.city ILIKE %s")
-        params.append(f"%{city}%")
+        if city:
+            conditions.append("l.city ILIKE %s")
+            params.append(f"%{city}%")
 
-    where_clause = " AND ".join(conditions)
+        where_clause = " AND ".join(conditions)
 
-    # Get price changes with listing info
-    cur.execute(f"""
-        SELECT
-            ph.listing_id,
-            l.city,
-            l.street,
-            l.neighborhood,
-            l.rooms,
-            ph.price,
-            ph.price_numeric,
-            ph.recorded_at,
-            LAG(ph.price_numeric) OVER (
-                PARTITION BY ph.listing_id ORDER BY ph.recorded_at
-            ) as previous_price
-        FROM price_history ph
-        JOIN listings l ON l.id = ph.listing_id
-        WHERE {where_clause}
-        ORDER BY ph.recorded_at DESC
-        LIMIT %s OFFSET %s
-    """, params + [limit, offset])
+        # Get price changes with listing info
+        cur.execute(f"""
+            SELECT
+                ph.listing_id,
+                l.city,
+                l.street,
+                l.neighborhood,
+                l.rooms,
+                ph.price,
+                ph.price_numeric,
+                ph.recorded_at,
+                LAG(ph.price_numeric) OVER (
+                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                ) as previous_price
+            FROM price_history ph
+            JOIN listings l ON l.id = ph.listing_id
+            WHERE {where_clause}
+            ORDER BY ph.recorded_at DESC
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
 
-    changes = []
-    for row in cur.fetchall():
-        r = dict(row)
-        if r["previous_price"] is not None:  # Skip initial prices
-            r["price_diff"] = r["price_numeric"] - r["previous_price"]
-            r["price_diff_percent"] = round(
-                (r["price_diff"] / r["previous_price"]) * 100, 1
-            ) if r["previous_price"] else 0
-            changes.append(r)
+        changes = []
+        for row in cur.fetchall():
+            r = dict(row)
+            if r["previous_price"] is not None:  # Skip initial prices
+                r["price_diff"] = r["price_numeric"] - r["previous_price"]
+                r["price_diff_percent"] = round(
+                    (r["price_diff"] / r["previous_price"]) * 100, 1
+                ) if r["previous_price"] else 0
+                changes.append(r)
 
-    # Get total count of changes
-    cur.execute(f"""
-        SELECT COUNT(*) as count
-        FROM price_history ph
-        JOIN listings l ON l.id = ph.listing_id
-        WHERE {where_clause}
-    """, params)
-    total = cur.fetchone()["count"]
+        # Get total count of changes
+        cur.execute(f"""
+            SELECT COUNT(*) as count
+            FROM price_history ph
+            JOIN listings l ON l.id = ph.listing_id
+            WHERE {where_clause}
+        """, params)
+        total = cur.fetchone()["count"]
 
-    # Get summary stats
-    cur.execute(f"""
-        SELECT
-            COUNT(DISTINCT ph.listing_id) as listings_with_changes,
-            COUNT(*) as total_price_records
-        FROM price_history ph
-        JOIN listings l ON l.id = ph.listing_id
-        WHERE {where_clause}
-    """, params)
-    summary = dict(cur.fetchone())
+        # Get summary stats
+        cur.execute(f"""
+            SELECT
+                COUNT(DISTINCT ph.listing_id) as listings_with_changes,
+                COUNT(*) as total_price_records
+            FROM price_history ph
+            JOIN listings l ON l.id = ph.listing_id
+            WHERE {where_clause}
+        """, params)
+        summary = dict(cur.fetchone())
+
+    except Exception:
+        changes = []
+        total = 0
+        summary = {"listings_with_changes": 0, "total_price_records": 0}
 
     cur.close()
     conn.close()
