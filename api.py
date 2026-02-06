@@ -75,6 +75,9 @@ def index():
             "/runs": "GET - Get scrape run history",
             "/cities": "GET - List all cities",
             "/neighborhoods": "GET - List neighborhoods (optional city filter)",
+            "/analytics/neighborhoods": "GET - Price analytics per neighborhood",
+            "/analytics/price-map": "GET - Listings with coordinates for map",
+            "/analytics/trends": "GET - Daily price trends over time",
             "/health": "GET - Health check"
         }
     })
@@ -519,6 +522,151 @@ def list_neighborhoods():
         conn.close()
 
     return jsonify({"neighborhoods": neighborhoods})
+
+
+@app.route("/analytics/neighborhoods")
+def neighborhood_analytics():
+    """Get price analytics per neighborhood, optionally filtered by city."""
+    city = request.args.get("city")
+    min_listings = request.args.get("min_listings", 3, type=int)
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+
+        conditions = ["is_active = TRUE", "price_numeric > 0", "neighborhood IS NOT NULL"]
+        params = []
+
+        if city:
+            conditions.append("city ILIKE %s")
+            params.append(f"%{city}%")
+
+        where = " AND ".join(conditions)
+
+        cur.execute(f"""
+            SELECT
+                city,
+                neighborhood,
+                COUNT(*) as listings_count,
+                ROUND(AVG(price_numeric))::int as avg_price,
+                MIN(price_numeric) as min_price,
+                MAX(price_numeric) as max_price,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)::int as median_price,
+                ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
+                    THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                ROUND(AVG(CASE WHEN rooms ~ '^[0-9]+$' THEN rooms::int END), 1) as avg_rooms
+            FROM listings
+            WHERE {where}
+            GROUP BY city, neighborhood
+            HAVING COUNT(*) >= %s
+            ORDER BY avg_price ASC
+        """, params + [min_listings])
+
+        neighborhoods = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "count": len(neighborhoods),
+        "min_listings": min_listings,
+        "neighborhoods": neighborhoods
+    })
+
+
+@app.route("/analytics/price-map")
+def price_map():
+    """Get listings with coordinates for map visualization."""
+    city = request.args.get("city")
+    limit = min(request.args.get("limit", 500, type=int), 2000)
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+
+        conditions = [
+            "is_active = TRUE",
+            "latitude IS NOT NULL",
+            "longitude IS NOT NULL",
+            "price_numeric > 0"
+        ]
+        params = []
+
+        if city:
+            conditions.append("city ILIKE %s")
+            params.append(f"%{city}%")
+
+        where = " AND ".join(conditions)
+
+        cur.execute(f"""
+            SELECT id, city, neighborhood, street, rooms, price_numeric,
+                   size_sqm, floor, latitude, longitude, link_token,
+                   is_merchant, first_seen_at
+            FROM listings
+            WHERE {where}
+            ORDER BY price_numeric ASC
+            LIMIT %s
+        """, params + [limit])
+
+        listings = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "count": len(listings),
+        "listings": listings
+    })
+
+
+@app.route("/analytics/trends")
+def price_trends():
+    """Get daily average price trends over time."""
+    city = request.args.get("city")
+    days = max(1, min(request.args.get("days", 30, type=int), 365))
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+
+        conditions = ["ph.recorded_at > NOW() - make_interval(days => %s)"]
+        params = [days]
+
+        if city:
+            conditions.append("l.city ILIKE %s")
+            params.append(f"%{city}%")
+
+        where = " AND ".join(conditions)
+
+        cur.execute(f"""
+            SELECT
+                DATE(ph.recorded_at) as date,
+                COUNT(*) as price_changes,
+                COUNT(DISTINCT ph.listing_id) as listings_affected,
+                ROUND(AVG(ph.price_numeric))::int as avg_price,
+                SUM(CASE WHEN ph.price_numeric < LAG(ph.price_numeric) OVER (
+                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                ) THEN 1 ELSE 0 END) as drops,
+                SUM(CASE WHEN ph.price_numeric > LAG(ph.price_numeric) OVER (
+                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                ) THEN 1 ELSE 0 END) as raises
+            FROM price_history ph
+            JOIN listings l ON l.id = ph.listing_id
+            WHERE {where}
+            GROUP BY DATE(ph.recorded_at)
+            ORDER BY date ASC
+        """, params)
+
+        trends = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
+
+    return jsonify({
+        "days": days,
+        "count": len(trends),
+        "trends": trends
+    })
 
 
 if __name__ == "__main__":

@@ -716,6 +716,7 @@
         <button class="tab active" data-tab="overview">Overview<span class="tab-badge" id="overviewBadge">--</span></button>
         <button class="tab" data-tab="listings">Listings<span class="tab-badge" id="listingsBadge">0</span></button>
         <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
+        <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
         <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
     </div>
 
@@ -927,6 +928,38 @@
         </div>
     </div>
 
+    <!-- Analytics Panel -->
+    <div class="panel" id="analytics-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Neighborhood Price Comparison</h2>
+                <div class="filter-toolbar">
+                    <select id="analyticsCityFilter" onchange="loadNeighborhoodAnalytics()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <option value="">All Cities</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Listings</th>
+                            <th>Avg Price</th>
+                            <th>Median</th>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>Avg/sqm</th>
+                            <th>Avg Rooms</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analyticsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Runs Panel -->
     <div class="panel" id="runs-panel">
         <div class="card">
@@ -1042,7 +1075,7 @@ async function api(endpoint, params = {}) {
 
 async function loadAll() {
     try {
-        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns()]);
+        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities()]);
         const failed = results.filter(r => r.status === 'rejected');
         if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
         document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
@@ -1124,6 +1157,54 @@ async function loadRuns() {
         renderRecentRuns(d.runs.slice(0, 8));
     } catch (e) {
         document.getElementById('runsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+// ─── ANALYTICS ──────────────────────────────────────────────────────────────
+
+async function loadAnalyticsCities() {
+    try {
+        const d = await api('/cities');
+        const sel = document.getElementById('analyticsCityFilter');
+        sel.innerHTML = '<option value="">All Cities</option>' +
+            d.cities.map(c => `<option value="${c.city}">${c.city} (${c.listings_count})</option>`).join('');
+        await loadNeighborhoodAnalytics();
+    } catch (e) {
+        console.error('Analytics cities error:', e);
+    }
+}
+
+async function loadNeighborhoodAnalytics() {
+    const city = document.getElementById('analyticsCityFilter').value;
+    const tbody = document.getElementById('analyticsBody');
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="loading"><div class="spinner"></div>Loading...</div></td></tr>';
+
+    try {
+        const params = { min_listings: 3 };
+        if (city) params.city = city;
+        const d = await api('/analytics/neighborhoods', params);
+        document.getElementById('analyticsBadge').textContent = fmtN(d.count);
+
+        if (!d.neighborhoods.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No data</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = d.neighborhoods.map(n => `
+            <tr onclick="filterByCity('${n.city}')" style="cursor:pointer">
+                <td>${n.city || '-'}</td>
+                <td>${n.neighborhood || '-'}</td>
+                <td>${fmtN(n.listings_count)}</td>
+                <td><strong>${fmtP(n.avg_price)}</strong></td>
+                <td>${fmtP(n.median_price)}</td>
+                <td>${fmtP(n.min_price)}</td>
+                <td>${fmtP(n.max_price)}</td>
+                <td>${n.avg_price_per_sqm ? fmtP(n.avg_price_per_sqm) : '-'}</td>
+                <td>${n.avg_rooms || '-'}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 
