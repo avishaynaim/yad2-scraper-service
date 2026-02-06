@@ -155,6 +155,7 @@ def init_db():
         ("run_type", "VARCHAR(20)", "'full'"),
         ("last_page_scraped", "INTEGER", "0"),
         ("scraped_pages", "JSONB", "'[]'"),
+        ("price_changes", "INTEGER", "0"),
     ]:
         cur.execute(f"ALTER TABLE scrape_runs ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT {default};")
 
