@@ -357,9 +357,9 @@ def list_price_changes():
     try:
         # Build query with optional city filter
         conditions = [
-            "ph.recorded_at > NOW() - INTERVAL '%s days'" % days
+            "ph.recorded_at > NOW() - make_interval(days => %s)"
         ]
-        params = []
+        params = [days]
 
         if city:
             conditions.append("l.city ILIKE %s")
