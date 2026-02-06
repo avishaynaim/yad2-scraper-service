@@ -204,17 +204,19 @@ def set_state(key: str, value: str):
 def cleanup_stale_runs():
     """Mark all 'running' runs with 0 pages scraped as 'abandoned'."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        UPDATE scrape_runs
-        SET status = 'abandoned', finished_at = NOW(),
-            error_message = 'Abandoned: no pages scraped before restart'
-        WHERE status = 'running' AND (pages_scraped IS NULL OR pages_scraped = 0)
-    """)
-    abandoned = cur.rowcount
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE scrape_runs
+            SET status = 'abandoned', finished_at = NOW(),
+                error_message = 'Abandoned: no pages scraped before restart'
+            WHERE status = 'running' AND (pages_scraped IS NULL OR pages_scraped = 0)
+        """)
+        abandoned = cur.rowcount
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
     if abandoned > 0:
         logger.info(f"Cleaned up {abandoned} stale runs with 0 pages scraped")
 
