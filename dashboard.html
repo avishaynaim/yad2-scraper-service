@@ -540,6 +540,57 @@
 
         .empty-state { text-align: center; padding: 2rem; color: var(--gray-400); font-size: 0.875rem; }
 
+        /* Skeleton loading */
+        .skeleton { background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 1em; display: inline-block; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Quick search */
+        .quick-search {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .quick-search input {
+            padding: 0.375rem 0.75rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-size: 0.8125rem;
+            width: 200px;
+            outline: none;
+            transition: var(--transition);
+        }
+        .quick-search input:focus { border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+
+        /* Page size selector */
+        .page-size-select {
+            padding: 0.3125rem 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            outline: none;
+            background: white;
+        }
+
+        /* Export button */
+        .btn-export {
+            padding: 0.375rem 0.75rem;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .btn-export:hover { background: #047857; }
+
+        /* Price/sqm highlight */
+        .price-sqm { color: var(--info); font-weight: 500; font-size: 0.75rem; }
+
         /* Scraper Status Panel */
         .scraper-status {
             background: white;
@@ -788,8 +839,12 @@
             <div class="card-header">
                 <h2 class="card-title">Listings</h2>
                 <div class="filter-toolbar">
+                    <div class="quick-search">
+                        <input type="text" id="listingsSearch" placeholder="Search city, street, neighborhood..." oninput="onQuickSearch()">
+                    </div>
                     <div id="listingsPresets"></div>
                     <button class="preset-btn" onclick="savePreset()">Save Filter</button>
+                    <button class="btn-export" onclick="exportCSV()">&#8681; CSV</button>
                     <button class="preset-btn" onclick="clearAllFilters()">Clear All</button>
                 </div>
             </div>
@@ -847,6 +902,11 @@
                             </th>
                             <th>
                                 <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('price_per_sqm')">&#8362;/sqm <span class="sort-icon" data-sort="price_per_sqm">&#9650;</span></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
                                     <div class="th-label">Type</div>
                                     <div class="multi-select" data-col="is_merchant" data-tbl="listings"></div>
                                 </div>
@@ -860,7 +920,17 @@
             </div>
             <div class="pagination">
                 <div class="pagination-info" id="listingsPaginationInfo"></div>
-                <div class="pagination-controls" id="listingsPagination"></div>
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <label style="font-size:0.75rem;color:var(--gray-500);">Per page:
+                        <select class="page-size-select" onchange="changePageSize(this.value)">
+                            <option value="25">25</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </label>
+                    <div class="pagination-controls" id="listingsPagination"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -1091,15 +1161,15 @@ async function loadStats() {
         S.stats = s;
         document.getElementById('hkTotal').textContent = fmtN(s.active_listings);
         document.getElementById('hkCities').textContent = fmtN(s.cities);
-        document.getElementById('hkAvgPrice').textContent = `${fmtN(s.avg_price)}`;
+        document.getElementById('hkAvgPrice').textContent = `\u20AA${fmtN(s.avg_price)}`;
         document.getElementById('hkChanges').textContent = fmtN(s.price_history?.changes_last_24h || 0);
         document.getElementById('overviewBadge').textContent = fmtN(s.active_listings);
 
         document.getElementById('kpiActive').textContent = fmtN(s.active_listings);
         document.getElementById('kpiTotal').textContent = fmtN(s.total_listings);
-        document.getElementById('kpiAvg').textContent = `${fmtN(s.avg_price)}`;
-        document.getElementById('kpiMin').textContent = `${fmtN(s.min_price)}`;
-        document.getElementById('kpiMax').textContent = `${fmtN(s.max_price)}`;
+        document.getElementById('kpiAvg').textContent = `\u20AA${fmtN(s.avg_price)}`;
+        document.getElementById('kpiMin').textContent = `\u20AA${fmtN(s.min_price)}`;
+        document.getElementById('kpiMax').textContent = `\u20AA${fmtN(s.max_price)}`;
         document.getElementById('kpiCities').textContent = fmtN(s.cities);
         document.getElementById('kpiNeighborhoods').textContent = fmtN(s.neighborhoods);
         document.getElementById('kpiChanges7d').textContent = fmtN(s.price_history?.changes_last_7d || 0);
@@ -1137,7 +1207,7 @@ async function loadPriceChanges() {
         document.getElementById('pcTotal').textContent = fmtN(d.changes.length);
         document.getElementById('pcDrops').textContent = fmtN(drops.length);
         document.getElementById('pcRaises').textContent = fmtN(raises.length);
-        document.getElementById('pcAvg').textContent = `${fmtN(avg)}`;
+        document.getElementById('pcAvg').textContent = `\u20AA${fmtN(avg)}`;
 
         buildFilters('priceChanges');
         filterAndRender('priceChanges');
@@ -1195,11 +1265,11 @@ async function loadNeighborhoodAnalytics() {
                 <td>${n.city || '-'}</td>
                 <td>${n.neighborhood || '-'}</td>
                 <td>${fmtN(n.listings_count)}</td>
-                <td><strong>${fmtP(n.avg_price)}</strong></td>
-                <td>${fmtP(n.median_price)}</td>
-                <td>${fmtP(n.min_price)}</td>
-                <td>${fmtP(n.max_price)}</td>
-                <td>${n.avg_price_per_sqm ? fmtP(n.avg_price_per_sqm) : '-'}</td>
+                <td><strong>&#8362;${fmtP(n.avg_price)}</strong></td>
+                <td>&#8362;${fmtP(n.median_price)}</td>
+                <td>&#8362;${fmtP(n.min_price)}</td>
+                <td>&#8362;${fmtP(n.max_price)}</td>
+                <td>${n.avg_price_per_sqm ? '&#8362;' + fmtP(n.avg_price_per_sqm) : '-'}</td>
                 <td>${n.avg_rooms || '-'}</td>
             </tr>
         `).join('');
@@ -1368,6 +1438,16 @@ function filterListings() {
     const f = S.listings.filters;
     let data = S.listings.allData;
 
+    // Quick search
+    const q = (document.getElementById('listingsSearch')?.value || '').trim().toLowerCase();
+    if (q) {
+        data = data.filter(i =>
+            (i.city || '').toLowerCase().includes(q) ||
+            (i.neighborhood || '').toLowerCase().includes(q) ||
+            (i.street || '').toLowerCase().includes(q)
+        );
+    }
+
     Object.entries(f).forEach(([col, vals]) => {
         if (col === 'price_min' || col === 'price_max' || !vals?.length) return;
         if (col === 'is_merchant') {
@@ -1379,6 +1459,9 @@ function filterListings() {
 
     if (f.price_min) data = data.filter(i => i.price_numeric >= f.price_min);
     if (f.price_max) data = data.filter(i => i.price_numeric <= f.price_max);
+
+    // Compute price_per_sqm for sorting
+    data.forEach(i => { i.price_per_sqm = (i.price_numeric && i.size_sqm) ? Math.round(i.price_numeric / i.size_sqm) : 0; });
 
     // Sort
     const { col, ord } = S.listings.sort;
@@ -1406,24 +1489,27 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No listings found</td></tr>';
         return;
     }
 
-    tbody.innerHTML = listings.map(l => `
+    tbody.innerHTML = listings.map(l => {
+        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+        return `
         <tr>
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
             <td>${l.street || '-'}</td>
             <td>${l.rooms || '-'}</td>
-            <td><strong>${fmtP(l.price_numeric)}</strong></td>
+            <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
             <td>${l.size_sqm || '-'}</td>
             <td>${l.floor || '-'}</td>
+            <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
             <td>${fmtD(l.first_seen_at)}</td>
             <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function filterPriceChanges() {
@@ -1465,10 +1551,10 @@ function renderPriceChangesTable(changes) {
                 <td>${c.neighborhood || '-'}</td>
                 <td>${c.street || '-'}</td>
                 <td>${c.rooms || '-'}</td>
-                <td>${fmtP(c.previous_price)}</td>
-                <td><strong>${fmtP(c.price_numeric)}</strong></td>
+                <td>&#8362;${fmtP(c.previous_price)}</td>
+                <td><strong>&#8362;${fmtP(c.price_numeric)}</strong></td>
                 <td><span class="${cls}">${arrow}</span></td>
-                <td class="${cls}">${fmtP(Math.abs(c.price_diff))}</td>
+                <td class="${cls}">&#8362;${fmtP(Math.abs(c.price_diff))}</td>
                 <td class="${cls}">${c.price_diff_percent}%</td>
                 <td>${fmtDT(c.recorded_at)}</td>
                 <td><a href="https://www.yad2.co.il/item/${c.listing_id}" target="_blank">View</a></td>
@@ -1595,8 +1681,8 @@ function renderLatestDrops(drops) {
         <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.75rem;padding:0.375rem 0;border-bottom:1px solid var(--gray-100);">
             <span style="color:var(--success);font-weight:600;">&#9660;</span>
             <span style="flex:1;color:var(--gray-700);">${d.city}, ${d.street || d.neighborhood || ''}</span>
-            <span style="text-decoration:line-through;color:var(--gray-400);">${fmtP(d.previous_price)}</span>
-            <span style="font-weight:600;color:var(--success);">${fmtP(d.price_numeric)}</span>
+            <span style="text-decoration:line-through;color:var(--gray-400);">&#8362;${fmtP(d.previous_price)}</span>
+            <span style="font-weight:600;color:var(--success);">&#8362;${fmtP(d.price_numeric)}</span>
             <span style="color:var(--success);font-size:0.625rem;">${d.price_diff_percent}%</span>
         </div>
     `).join('')}</div>`;
@@ -1788,6 +1874,50 @@ function deletePreset(i) {
     S.presets.splice(i, 1);
     localStorage.setItem('yad2_presets', JSON.stringify(S.presets));
     renderPresets();
+}
+
+// ─── QUICK SEARCH ───────────────────────────────────────────────────────────
+
+const onQuickSearch = debounce(() => {
+    S.listings.page = 1;
+    filterAndRender('listings');
+}, 300);
+
+// ─── CSV EXPORT ─────────────────────────────────────────────────────────────
+
+function exportCSV() {
+    const data = S.listings.data;
+    if (!data.length) { toast('No data to export'); return; }
+
+    const headers = ['City','Neighborhood','Street','Rooms','Price','Sqm','Floor','Price/Sqm','Type','Added','Link'];
+    const rows = data.map(l => {
+        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : '';
+        return [
+            l.city || '', l.neighborhood || '', l.street || '', l.rooms || '',
+            l.price_numeric || '', l.size_sqm || '', l.floor || '', ppsqm,
+            l.is_merchant ? 'Agent' : 'Private',
+            l.first_seen_at ? new Date(l.first_seen_at).toLocaleDateString('en-GB') : '',
+            `https://www.yad2.co.il/item/${l.link_token || l.id}`
+        ];
+    });
+
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yad2-listings-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${data.length} listings`);
+}
+
+// ─── PAGE SIZE ──────────────────────────────────────────────────────────────
+
+function changePageSize(size) {
+    S.listings.limit = parseInt(size);
+    S.listings.page = 1;
+    filterAndRender('listings');
 }
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
