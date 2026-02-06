@@ -6,11 +6,18 @@
     <title>Yad2 Scraper Dashboard</title>
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --primary-dark: #3730a3;
+            --primary-bg: #eef2ff;
+            --success: #059669;
+            --success-light: #d1fae5;
+            --warning: #d97706;
+            --warning-light: #fef3c7;
+            --danger: #dc2626;
+            --danger-light: #fee2e2;
+            --info: #0284c7;
+            --info-light: #e0f2fe;
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -21,161 +28,277 @@
             --gray-700: #374151;
             --gray-800: #1f2937;
             --gray-900: #111827;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            --radius: 0.75rem;
+            --radius-sm: 0.5rem;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 24px rgba(0,0,0,0.12);
+            --transition: 0.2s ease;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             background: var(--gray-100);
             color: var(--gray-800);
-            line-height: 1.5;
+            line-height: 1.6;
+            min-height: 100vh;
         }
 
         /* Header */
         .header {
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
-            padding: 1rem 1.5rem;
-            box-shadow: var(--shadow-md);
+            padding: 0.875rem 1.5rem;
             position: sticky;
             top: 0;
             z-index: 100;
+            box-shadow: 0 4px 20px rgba(79, 70, 229, 0.3);
         }
 
         .header-content {
-            max-width: 1600px;
+            max-width: 1920px;
             margin: 0 auto;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
             gap: 1rem;
         }
 
-        .header h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
+        .header-left { display: flex; align-items: center; gap: 1rem; }
+        .header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.75rem;
+            background: rgba(255,255,255,0.15);
+            padding: 0.25rem 0.625rem;
+            border-radius: 1rem;
+            backdrop-filter: blur(8px);
         }
 
-        .header-stats {
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .header-kpis {
             display: flex;
             gap: 1.5rem;
-            flex-wrap: wrap;
+            align-items: center;
         }
 
-        .header-stat {
-            text-align: center;
+        .header-kpi { text-align: center; }
+        .header-kpi-value { font-size: 1.125rem; font-weight: 700; }
+        .header-kpi-label { font-size: 0.6875rem; opacity: 0.8; }
+
+        .last-update {
+            font-size: 0.6875rem;
+            opacity: 0.7;
+            text-align: left;
         }
 
-        .header-stat-value {
-            font-size: 1.25rem;
-            font-weight: 700;
-        }
-
-        .header-stat-label {
-            font-size: 0.75rem;
-            opacity: 0.9;
-        }
-
-        /* Main Layout */
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 1.5rem;
-        }
+        /* Container */
+        .container { max-width: 1920px; margin: 0 auto; padding: 1.25rem; }
 
         /* Tabs */
         .tabs {
             display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-bottom: 1.25rem;
+            background: white;
+            border-radius: var(--radius);
+            padding: 0.25rem;
+            box-shadow: var(--shadow);
+            overflow-x: auto;
         }
 
         .tab {
-            padding: 0.75rem 1.5rem;
-            background: white;
+            flex: 1;
+            padding: 0.625rem 1rem;
+            background: transparent;
             border: none;
-            border-radius: 0.5rem;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 0.875rem;
+            font-size: 0.8125rem;
             font-weight: 500;
-            color: var(--gray-600);
-            transition: all 0.2s;
-            box-shadow: var(--shadow);
+            color: var(--gray-500);
+            transition: var(--transition);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
         }
 
-        .tab:hover {
-            background: var(--gray-50);
-        }
-
-        .tab.active {
-            background: var(--primary);
-            color: white;
-        }
+        .tab:hover { color: var(--gray-700); background: var(--gray-50); }
+        .tab.active { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(79,70,229,0.3); }
 
         .tab-badge {
             background: var(--gray-200);
-            color: var(--gray-700);
+            color: var(--gray-600);
             padding: 0.125rem 0.5rem;
             border-radius: 1rem;
-            font-size: 0.75rem;
-            margin-right: 0.5rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            min-width: 1.5rem;
+            text-align: center;
         }
 
-        .tab.active .tab-badge {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
+        .tab.active .tab-badge { background: rgba(255,255,255,0.25); color: white; }
 
         /* Panels */
-        .panel {
-            display: none;
+        .panel { display: none; }
+        .panel.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Analytics Grid */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
         }
 
-        .panel.active {
-            display: block;
-        }
-
-        /* Cards */
-        .card {
+        .kpi-card {
             background: white;
-            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border-right: 4px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .kpi-card.accent-primary { border-right-color: var(--primary); }
+        .kpi-card.accent-success { border-right-color: var(--success); }
+        .kpi-card.accent-warning { border-right-color: var(--warning); }
+        .kpi-card.accent-danger { border-right-color: var(--danger); }
+        .kpi-card.accent-info { border-right-color: var(--info); }
+
+        .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); line-height: 1.2; }
+        .kpi-label { font-size: 0.75rem; color: var(--gray-500); margin-top: 0.125rem; }
+        .kpi-trend { font-size: 0.6875rem; margin-top: 0.25rem; }
+        .kpi-trend.up { color: var(--danger); }
+        .kpi-trend.down { color: var(--success); }
+
+        /* Charts Row */
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: var(--radius);
             box-shadow: var(--shadow);
             overflow: hidden;
-            margin-bottom: 1.5rem;
+        }
+
+        .chart-card-header {
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100);
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--gray-700);
+        }
+
+        .chart-card-body { padding: 1rem 1.25rem; }
+
+        /* Bar Chart */
+        .bar-chart { display: flex; flex-direction: column; gap: 0.5rem; }
+        .bar-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
+        .bar-label { width: 80px; text-align: right; color: var(--gray-600); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bar-track { flex: 1; height: 22px; background: var(--gray-100); border-radius: 4px; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; display: flex; align-items: center; padding: 0 0.5rem; }
+        .bar-fill span { font-size: 0.625rem; font-weight: 600; color: white; white-space: nowrap; }
+        .bar-count { width: 50px; text-align: left; font-weight: 500; color: var(--gray-500); font-size: 0.6875rem; }
+
+        /* Card */
+        .card {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 1.25rem;
         }
 
         .card-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--gray-200);
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid var(--gray-100);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 1rem;
+            gap: 0.75rem;
         }
 
-        .card-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--gray-800);
+        .card-title { font-size: 0.9375rem; font-weight: 600; color: var(--gray-800); }
+
+        /* Active Filters Bar */
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.375rem;
+            align-items: center;
+            padding: 0 1.25rem;
         }
 
-        .card-body {
-            padding: 1.5rem;
+        .active-filters:empty { display: none; }
+
+        .active-filters-bar {
+            border-bottom: 1px solid var(--gray-100);
+            padding: 0.625rem 0;
         }
 
-        /* Filter Presets */
-        .filter-presets {
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--primary-bg);
+            color: var(--primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.6875rem;
+            font-weight: 500;
+        }
+
+        .filter-chip-remove {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 0.875rem;
+            line-height: 1;
+        }
+
+        .filter-chip-remove:hover { opacity: 1; }
+
+        .clear-all-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 0.6875rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .clear-all-btn:hover { background: var(--danger-light); }
+
+        /* Filter Toolbar */
+        .filter-toolbar {
             display: flex;
             gap: 0.5rem;
             align-items: center;
@@ -183,1268 +306,1416 @@
         }
 
         .preset-btn {
-            padding: 0.375rem 0.75rem;
-            background: var(--gray-100);
-            border: 1px solid var(--gray-300);
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
+            padding: 0.375rem 0.625rem;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
 
-        .preset-btn:hover {
-            background: var(--gray-200);
-        }
+        .preset-btn:hover { background: var(--gray-100); border-color: var(--gray-300); }
 
-        .preset-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
+        /* Table */
+        .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-        .preset-btn .delete {
-            opacity: 0.6;
-            font-weight: bold;
-        }
-
-        .preset-btn .delete:hover {
-            opacity: 1;
-            color: var(--danger);
-        }
-
-        .save-preset-btn {
-            background: var(--success);
-            color: white;
-            border-color: var(--success);
-        }
-
-        .save-preset-btn:hover {
-            background: #059669;
-        }
-
-        /* Tables */
-        .table-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 
         th, td {
-            padding: 0.75rem 1rem;
+            padding: 0.625rem 0.875rem;
             text-align: right;
-            border-bottom: 1px solid var(--gray-200);
+            border-bottom: 1px solid var(--gray-100);
             white-space: nowrap;
         }
 
         th {
             background: var(--gray-50);
             font-weight: 600;
-            color: var(--gray-700);
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
             position: sticky;
             top: 0;
             z-index: 10;
         }
 
-        .th-content {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
+        tbody tr { transition: background var(--transition); }
+        tbody tr:hover { background: var(--primary-bg); }
 
-        .th-label {
+        .th-content { display: flex; flex-direction: column; gap: 0.375rem; }
+        .th-label { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; user-select: none; }
+        .th-label:hover { color: var(--primary); }
+        .sort-icon { font-size: 0.625rem; opacity: 0.4; }
+        .sort-icon.active { opacity: 1; color: var(--primary); }
+
+        /* Multi-select Dropdown */
+        .multi-select { position: relative; min-width: 100px; }
+
+        .ms-trigger {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: space-between;
+            padding: 0.3125rem 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.25rem;
+            background: white;
             cursor: pointer;
+            font-size: 0.6875rem;
+            min-height: 26px;
+            gap: 0.25rem;
+            transition: var(--transition);
         }
 
-        .th-label:hover {
-            color: var(--primary);
+        .ms-trigger:hover { border-color: var(--primary-light); }
+        .ms-trigger.has-selection { border-color: var(--primary); background: var(--primary-bg); }
+
+        .ms-count {
+            background: var(--primary);
+            color: white;
+            padding: 0 0.375rem;
+            border-radius: 0.25rem;
+            font-size: 0.5625rem;
+            font-weight: 600;
+            line-height: 1.4;
         }
 
-        .sort-icon {
-            font-size: 0.625rem;
-            opacity: 0.5;
+        .ms-arrow { font-size: 0.5rem; color: var(--gray-400); transition: transform var(--transition); }
+        .ms-trigger.open .ms-arrow { transform: rotate(180deg); }
+
+        .ms-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 200px;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
+            z-index: 1000;
+            display: none;
+            overflow: hidden;
         }
 
-        .sort-icon.active {
-            opacity: 1;
-            color: var(--primary);
+        .ms-dropdown.open { display: block; animation: dropIn 0.15s ease; }
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+        .ms-search {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--gray-100);
         }
 
-        /* Column Filters */
-        .column-filter {
+        .ms-search input {
             width: 100%;
             padding: 0.375rem 0.5rem;
-            border: 1px solid var(--gray-300);
+            border: 1px solid var(--gray-200);
             border-radius: 0.25rem;
             font-size: 0.75rem;
-            background: white;
-        }
-
-        .column-filter:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
         }
 
-        .column-filter::placeholder {
-            color: var(--gray-400);
-        }
+        .ms-search input:focus { border-color: var(--primary-light); }
 
-        tr:hover td {
+        .ms-actions {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.375rem 0.5rem;
+            border-bottom: 1px solid var(--gray-100);
             background: var(--gray-50);
         }
 
-        /* Price Change Indicators */
-        .price-up {
-            color: var(--danger);
-        }
-
-        .price-down {
-            color: var(--success);
-        }
-
-        .badge {
-            padding: 0.25rem 0.5rem;
+        .ms-actions button {
+            flex: 1;
+            padding: 0.25rem;
+            border: none;
             border-radius: 0.25rem;
+            background: white;
+            cursor: pointer;
+            font-size: 0.625rem;
+            color: var(--gray-600);
+            transition: var(--transition);
+        }
+
+        .ms-actions button:hover { background: var(--primary-bg); color: var(--primary); }
+
+        .ms-options { max-height: 220px; overflow-y: auto; }
+
+        .ms-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4375rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background var(--transition);
+        }
+
+        .ms-option:hover { background: var(--gray-50); }
+        .ms-option input[type="checkbox"] { accent-color: var(--primary); margin: 0; cursor: pointer; }
+        .ms-option-label { flex: 1; }
+        .ms-option-count { color: var(--gray-400); font-size: 0.625rem; }
+
+        /* Range Filter */
+        .range-filter { display: flex; gap: 0.25rem; align-items: center; }
+        .range-filter input {
+            width: 55px;
+            padding: 0.3125rem 0.375rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.25rem;
+            font-size: 0.6875rem;
+            text-align: center;
+            outline: none;
+        }
+        .range-filter input:focus { border-color: var(--primary-light); }
+
+        /* Price styling */
+        .price-up { color: var(--danger); }
+        .price-down { color: var(--success); }
+        .price-stable { color: var(--gray-400); }
+
+        .trend-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
             font-size: 0.75rem;
             font-weight: 500;
         }
 
-        .badge-success {
-            background: #d1fae5;
-            color: #065f46;
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.1875rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.6875rem;
+            font-weight: 500;
         }
 
-        .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .badge-danger {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .badge-info {
-            background: #dbeafe;
-            color: #1e40af;
-        }
+        .badge-success { background: var(--success-light); color: var(--success); }
+        .badge-warning { background: var(--warning-light); color: var(--warning); }
+        .badge-danger { background: var(--danger-light); color: var(--danger); }
+        .badge-info { background: var(--info-light); color: var(--info); }
+        .badge-neutral { background: var(--gray-100); color: var(--gray-600); }
 
         /* Pagination */
         .pagination {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 1.5rem;
-            border-top: 1px solid var(--gray-200);
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid var(--gray-100);
             flex-wrap: wrap;
-            gap: 1rem;
+            gap: 0.75rem;
         }
 
-        .pagination-info {
-            color: var(--gray-600);
-            font-size: 0.875rem;
-        }
-
-        .pagination-controls {
-            display: flex;
-            gap: 0.25rem;
-        }
+        .pagination-info { color: var(--gray-500); font-size: 0.8125rem; }
+        .pagination-controls { display: flex; gap: 0.25rem; }
 
         .page-btn {
-            padding: 0.5rem 0.75rem;
+            padding: 0.375rem 0.625rem;
             background: white;
-            border: 1px solid var(--gray-300);
-            border-radius: 0.375rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.25rem;
             cursor: pointer;
-            font-size: 0.875rem;
-            transition: all 0.2s;
+            font-size: 0.8125rem;
+            transition: var(--transition);
+            color: var(--gray-600);
         }
 
-        .page-btn:hover:not(:disabled) {
-            background: var(--gray-100);
-        }
-
-        .page-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .page-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 1.25rem;
-            border-radius: 0.75rem;
-            box-shadow: var(--shadow);
-        }
-
-        .stat-card-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--gray-800);
-        }
-
-        .stat-card-label {
-            font-size: 0.875rem;
-            color: var(--gray-500);
-            margin-top: 0.25rem;
-        }
-
-        .stat-card-change {
-            font-size: 0.75rem;
-            margin-top: 0.5rem;
-        }
+        .page-btn:hover:not(:disabled) { background: var(--gray-50); border-color: var(--gray-300); }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
         /* Loading */
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 3rem;
-            color: var(--gray-500);
-        }
-
+        .loading { display: flex; justify-content: center; align-items: center; padding: 2rem; color: var(--gray-400); gap: 0.75rem; }
         .spinner {
-            width: 2rem;
-            height: 2rem;
-            border: 3px solid var(--gray-200);
+            width: 1.5rem; height: 1.5rem;
+            border: 2px solid var(--gray-200);
             border-top-color: var(--primary);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 0.75rem;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty-state { text-align: center; padding: 2rem; color: var(--gray-400); font-size: 0.875rem; }
+
+        /* Scraper Status Panel */
+        .scraper-status {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .scraper-status-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
         }
 
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--gray-500);
+        .scraper-status-icon.running { background: var(--info-light); animation: pulse-bg 2s ease-in-out infinite; }
+        .scraper-status-icon.idle { background: var(--success-light); }
+        @keyframes pulse-bg { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .scraper-status-text { flex: 1; }
+        .scraper-status-title { font-weight: 600; font-size: 0.875rem; color: var(--gray-800); }
+        .scraper-status-detail { font-size: 0.75rem; color: var(--gray-500); }
+
+        .scraper-status-progress {
+            width: 200px;
+            height: 6px;
+            background: var(--gray-200);
+            border-radius: 3px;
+            overflow: hidden;
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .header-content {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .header-stats {
-                justify-content: center;
-            }
-
-            .container {
-                padding: 1rem;
-            }
-
-            th, td {
-                padding: 0.5rem 0.75rem;
-            }
-
-            .card-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .filter-presets {
-                width: 100%;
-            }
-        }
-
-        /* Links */
-        a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
+        .scraper-status-progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 3px;
+            transition: width 0.5s ease;
         }
 
         /* Modal */
         .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
             display: none;
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
-
-        .modal-overlay.active {
-            display: flex;
-        }
+        .modal-overlay.active { display: flex; }
 
         .modal {
             background: white;
-            border-radius: 0.75rem;
+            border-radius: var(--radius);
             padding: 1.5rem;
             max-width: 400px;
             width: 90%;
             box-shadow: var(--shadow-lg);
         }
 
-        .modal h3 {
-            margin-bottom: 1rem;
-        }
-
+        .modal h3 { margin-bottom: 1rem; font-size: 1rem; }
         .modal input {
             width: 100%;
-            padding: 0.75rem;
+            padding: 0.625rem;
             border: 1px solid var(--gray-300);
-            border-radius: 0.375rem;
-            font-size: 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.875rem;
             margin-bottom: 1rem;
         }
-
-        .modal-actions {
-            display: flex;
-            gap: 0.5rem;
-            justify-content: flex-end;
-        }
+        .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
         .btn {
             padding: 0.5rem 1rem;
             border: none;
-            border-radius: 0.375rem;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 0.875rem;
+            font-size: 0.8125rem;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
 
-        .btn-primary {
-            background: var(--primary);
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-secondary { background: var(--gray-100); color: var(--gray-600); }
+        .btn-secondary:hover { background: var(--gray-200); }
+
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--gray-900);
             color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            font-size: 0.8125rem;
+            box-shadow: var(--shadow-lg);
+            z-index: 10000;
+            transition: transform 0.3s ease;
+            pointer-events: none;
         }
 
-        .btn-primary:hover {
-            background: var(--primary-dark);
+        .toast.visible { transform: translateX(-50%) translateY(0); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content { flex-direction: column; gap: 0.5rem; }
+            .header-kpis { gap: 1rem; flex-wrap: wrap; justify-content: center; }
+            .container { padding: 0.75rem; }
+            .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-row { grid-template-columns: 1fr; }
+            th, td { padding: 0.5rem 0.625rem; }
+            .card-header { flex-direction: column; align-items: flex-start; }
+            .tabs { flex-wrap: nowrap; overflow-x: auto; }
+            .tab { min-width: fit-content; flex: none; }
+            .scraper-status { flex-direction: column; text-align: center; }
+            .scraper-status-progress { width: 100%; }
         }
 
-        .btn-secondary {
-            background: var(--gray-200);
-            color: var(--gray-700);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-300);
-        }
-
-        /* Refresh button */
-        .refresh-btn {
-            background: white;
-            color: var(--primary);
-            border: 1px solid currentColor;
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-size: 0.875rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .refresh-btn:hover {
-            background: var(--gray-50);
-        }
-
-        .refresh-btn.loading {
-            opacity: 0.7;
-            cursor: wait;
+        @media (max-width: 480px) {
+            .analytics-grid { grid-template-columns: 1fr; }
+            .kpi-value { font-size: 1.25rem; }
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-content">
-            <h1>📊 Yad2 Scraper Dashboard</h1>
-            <div class="header-stats" id="headerStats">
-                <div class="header-stat">
-                    <div class="header-stat-value" id="totalListings">-</div>
-                    <div class="header-stat-label">דירות פעילות</div>
-                </div>
-                <div class="header-stat">
-                    <div class="header-stat-value" id="totalCities">-</div>
-                    <div class="header-stat-label">ערים</div>
-                </div>
-                <div class="header-stat">
-                    <div class="header-stat-value" id="avgPrice">-</div>
-                    <div class="header-stat-label">מחיר ממוצע</div>
-                </div>
-                <div class="header-stat">
-                    <div class="header-stat-value" id="priceChanges24h">-</div>
-                    <div class="header-stat-label">שינויי מחיר (24ש)</div>
-                </div>
+
+<header class="header">
+    <div class="header-content">
+        <div class="header-left">
+            <h1>Yad2 Dashboard</h1>
+            <div class="live-badge">
+                <span class="live-dot"></span>
+                <span id="liveStatus">Auto-refresh</span>
             </div>
-            <button class="refresh-btn" onclick="refreshAll()">
-                🔄 רענן
-            </button>
         </div>
-    </header>
-
-    <main class="container">
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab active" data-tab="listings">
-                <span class="tab-badge" id="listingsCount">0</span>
-                דירות
-            </button>
-            <button class="tab" data-tab="price-changes">
-                <span class="tab-badge" id="priceChangesCount">0</span>
-                שינויי מחיר
-            </button>
-            <button class="tab" data-tab="runs">
-                <span class="tab-badge" id="runsCount">0</span>
-                היסטוריית סריקות
-            </button>
-            <button class="tab" data-tab="cities">
-                <span class="tab-badge" id="citiesCount">0</span>
-                ערים
-            </button>
+        <div class="header-kpis" id="headerKpis">
+            <div class="header-kpi">
+                <div class="header-kpi-value" id="hkTotal">--</div>
+                <div class="header-kpi-label">Active Listings</div>
+            </div>
+            <div class="header-kpi">
+                <div class="header-kpi-value" id="hkCities">--</div>
+                <div class="header-kpi-label">Cities</div>
+            </div>
+            <div class="header-kpi">
+                <div class="header-kpi-value" id="hkAvgPrice">--</div>
+                <div class="header-kpi-label">Avg Price</div>
+            </div>
+            <div class="header-kpi">
+                <div class="header-kpi-value" id="hkChanges">--</div>
+                <div class="header-kpi-label">Price Changes 24h</div>
+            </div>
         </div>
+        <div class="last-update" id="lastUpdate">Loading...</div>
+    </div>
+</header>
 
-        <!-- Listings Panel -->
-        <div class="panel active" id="listings-panel">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">דירות להשכרה</h2>
-                    <div class="filter-presets">
-                        <span style="font-size: 0.75rem; color: var(--gray-500);">פילטרים שמורים:</span>
-                        <div id="listingsPresets"></div>
-                        <button class="preset-btn save-preset-btn" onclick="savePreset('listings')">
-                            💾 שמור פילטר
-                        </button>
-                        <button class="preset-btn" onclick="clearFilters('listings')">
-                            🗑️ נקה הכל
-                        </button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table id="listingsTable">
-                        <thead>
-                            <tr>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="city">עיר <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="city" placeholder="סנן עיר...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="neighborhood">שכונה <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="neighborhood" placeholder="סנן שכונה...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="street">רחוב <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="street" placeholder="סנן רחוב...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="rooms">חדרים <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="rooms" placeholder="3-5">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="price_numeric">מחיר <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="price" placeholder="3000-8000">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="size_sqm">מ"ר <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="size_sqm" placeholder="סנן...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="floor">קומה <span class="sort-icon">▼</span></div>
-                                        <input type="text" class="column-filter" data-column="floor" placeholder="סנן...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">סוג <span class="sort-icon">▼</span></div>
-                                        <select class="column-filter" data-column="is_merchant">
-                                            <option value="">הכל</option>
-                                            <option value="false">פרטי</option>
-                                            <option value="true">תיווך</option>
-                                        </select>
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label" data-sort="first_seen_at">נוסף <span class="sort-icon">▼</span></div>
-                                    </div>
-                                </th>
-                                <th>פעולות</th>
-                            </tr>
-                        </thead>
-                        <tbody id="listingsBody">
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination">
-                    <div class="pagination-info" id="listingsPaginationInfo">מציג 0-0 מתוך 0</div>
-                    <div class="pagination-controls" id="listingsPagination"></div>
-                </div>
+<main class="container">
+    <div class="tabs">
+        <button class="tab active" data-tab="overview">Overview<span class="tab-badge" id="overviewBadge">--</span></button>
+        <button class="tab" data-tab="listings">Listings<span class="tab-badge" id="listingsBadge">0</span></button>
+        <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
+        <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
+    </div>
+
+    <!-- Overview Panel -->
+    <div class="panel active" id="overview-panel">
+        <div id="scraperStatusContainer"></div>
+
+        <div class="analytics-grid" id="kpiGrid">
+            <div class="kpi-card accent-primary">
+                <div class="kpi-value" id="kpiActive">--</div>
+                <div class="kpi-label">Active Listings</div>
+            </div>
+            <div class="kpi-card accent-info">
+                <div class="kpi-value" id="kpiTotal">--</div>
+                <div class="kpi-label">Total Ever Seen</div>
+            </div>
+            <div class="kpi-card accent-success">
+                <div class="kpi-value" id="kpiAvg">--</div>
+                <div class="kpi-label">Avg Price</div>
+            </div>
+            <div class="kpi-card accent-warning">
+                <div class="kpi-value" id="kpiMin">--</div>
+                <div class="kpi-label">Min Price</div>
+            </div>
+            <div class="kpi-card accent-danger">
+                <div class="kpi-value" id="kpiMax">--</div>
+                <div class="kpi-label">Max Price</div>
+            </div>
+            <div class="kpi-card accent-info">
+                <div class="kpi-value" id="kpiCities">--</div>
+                <div class="kpi-label">Cities</div>
+            </div>
+            <div class="kpi-card accent-primary">
+                <div class="kpi-value" id="kpiNeighborhoods">--</div>
+                <div class="kpi-label">Neighborhoods</div>
+            </div>
+            <div class="kpi-card accent-warning">
+                <div class="kpi-value" id="kpiChanges7d">--</div>
+                <div class="kpi-label">Price Changes 7d</div>
             </div>
         </div>
 
-        <!-- Price Changes Panel -->
-        <div class="panel" id="price-changes-panel">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-card-value" id="priceChangesTotal">-</div>
-                    <div class="stat-card-label">שינויי מחיר (7 ימים)</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-value price-down" id="priceDrops">-</div>
-                    <div class="stat-card-label">ירידות מחיר</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-value price-up" id="priceRaises">-</div>
-                    <div class="stat-card-label">עליות מחיר</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-value" id="avgPriceChange">-</div>
-                    <div class="stat-card-label">שינוי ממוצע</div>
-                </div>
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-card-header">Top Cities</div>
+                <div class="chart-card-body" id="topCitiesChart"></div>
             </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">שינויי מחיר אחרונים</h2>
-                    <div class="filter-presets">
-                        <span style="font-size: 0.75rem; color: var(--gray-500);">פילטרים שמורים:</span>
-                        <div id="priceChangesPresets"></div>
-                        <button class="preset-btn save-preset-btn" onclick="savePreset('price-changes')">
-                            💾 שמור פילטר
-                        </button>
-                        <button class="preset-btn" onclick="clearFilters('price-changes')">
-                            🗑️ נקה הכל
-                        </button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table id="priceChangesTable">
-                        <thead>
-                            <tr>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">עיר</div>
-                                        <input type="text" class="column-filter" data-column="city" placeholder="סנן עיר...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">שכונה</div>
-                                        <input type="text" class="column-filter" data-column="neighborhood" placeholder="סנן...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">רחוב</div>
-                                        <input type="text" class="column-filter" data-column="street" placeholder="סנן...">
-                                    </div>
-                                </th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">חדרים</div>
-                                        <input type="text" class="column-filter" data-column="rooms" placeholder="סנן...">
-                                    </div>
-                                </th>
-                                <th>מחיר קודם</th>
-                                <th>מחיר חדש</th>
-                                <th>
-                                    <div class="th-content">
-                                        <div class="th-label">שינוי</div>
-                                        <select class="column-filter" data-column="direction">
-                                            <option value="">הכל</option>
-                                            <option value="down">ירידה</option>
-                                            <option value="up">עלייה</option>
-                                        </select>
-                                    </div>
-                                </th>
-                                <th>תאריך</th>
-                                <th>פעולות</th>
-                            </tr>
-                        </thead>
-                        <tbody id="priceChangesBody">
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination">
-                    <div class="pagination-info" id="priceChangesPaginationInfo">מציג 0-0 מתוך 0</div>
-                    <div class="pagination-controls" id="priceChangesPagination"></div>
-                </div>
+            <div class="chart-card">
+                <div class="chart-card-header">Rooms Distribution</div>
+                <div class="chart-card-body" id="roomsChart"></div>
             </div>
         </div>
 
-        <!-- Scrape Runs Panel -->
-        <div class="panel" id="runs-panel">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">היסטוריית סריקות</h2>
-                </div>
-                <div class="table-container">
-                    <table id="runsTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>התחלה</th>
-                                <th>סיום</th>
-                                <th>משך</th>
-                                <th>עמודים</th>
-                                <th>דירות</th>
-                                <th>חדשות</th>
-                                <th>עודכנו</th>
-                                <th>שינויי מחיר</th>
-                                <th>סטטוס</th>
-                            </tr>
-                        </thead>
-                        <tbody id="runsBody">
-                        </tbody>
-                    </table>
-                </div>
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-card-header">Recent Scrape Runs</div>
+                <div class="chart-card-body" id="recentRunsChart"></div>
             </div>
-        </div>
-
-        <!-- Cities Panel -->
-        <div class="panel" id="cities-panel">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">ערים</h2>
-                    <div class="filter-presets">
-                        <input type="text" class="column-filter" id="citySearch" placeholder="חפש עיר..." style="width: 200px;">
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table id="citiesTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>עיר</th>
-                                <th>מספר דירות</th>
-                                <th>פעולות</th>
-                            </tr>
-                        </thead>
-                        <tbody id="citiesBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Save Preset Modal -->
-    <div class="modal-overlay" id="presetModal">
-        <div class="modal">
-            <h3>שמור פילטר</h3>
-            <input type="text" id="presetName" placeholder="שם הפילטר...">
-            <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="closePresetModal()">ביטול</button>
-                <button class="btn btn-primary" onclick="confirmSavePreset()">שמור</button>
+            <div class="chart-card">
+                <div class="chart-card-header">Latest Price Drops</div>
+                <div class="chart-card-body" id="latestDropsChart"></div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Configuration
-        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:8000'
-            : 'https://api-production-3183.up.railway.app';
+    <!-- Listings Panel -->
+    <div class="panel" id="listings-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Listings</h2>
+                <div class="filter-toolbar">
+                    <div id="listingsPresets"></div>
+                    <button class="preset-btn" onclick="savePreset()">Save Filter</button>
+                    <button class="preset-btn" onclick="clearAllFilters()">Clear All</button>
+                </div>
+            </div>
+            <div class="active-filters-bar">
+                <div class="active-filters" id="activeFiltersChips"></div>
+            </div>
+            <div class="table-container">
+                <table id="listingsTable">
+                    <thead>
+                        <tr>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('city')">City <span class="sort-icon" data-sort="city">&#9650;</span></div>
+                                    <div class="multi-select" data-col="city" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('neighborhood')">Neighborhood <span class="sort-icon" data-sort="neighborhood">&#9650;</span></div>
+                                    <div class="multi-select" data-col="neighborhood" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('street')">Street</div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('rooms')">Rooms <span class="sort-icon" data-sort="rooms">&#9650;</span></div>
+                                    <div class="multi-select" data-col="rooms" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('price_numeric')">Price <span class="sort-icon" data-sort="price_numeric">&#9650;</span></div>
+                                    <div class="range-filter" data-col="price">
+                                        <input type="number" placeholder="Min" data-range="min">
+                                        <span style="color:var(--gray-400)">-</span>
+                                        <input type="number" placeholder="Max" data-range="max">
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('size_sqm')">Sqm <span class="sort-icon" data-sort="size_sqm">&#9650;</span></div>
+                                    <div class="multi-select" data-col="size_sqm" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label" onclick="sortListings('floor')">Floor <span class="sort-icon" data-sort="floor">&#9650;</span></div>
+                                    <div class="multi-select" data-col="floor" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label">Type</div>
+                                    <div class="multi-select" data-col="is_merchant" data-tbl="listings"></div>
+                                </div>
+                            </th>
+                            <th>Added</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listingsBody"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <div class="pagination-info" id="listingsPaginationInfo"></div>
+                <div class="pagination-controls" id="listingsPagination"></div>
+            </div>
+        </div>
+    </div>
 
-        // State
-        const state = {
-            listings: { data: [], filters: {}, sort: { column: 'last_seen_at', order: 'desc' }, page: 1, limit: 50, total: 0 },
-            priceChanges: { data: [], filters: {}, page: 1, limit: 50, total: 0 },
-            runs: { data: [] },
-            cities: { data: [], filter: '' },
-            presets: JSON.parse(localStorage.getItem('yad2_presets') || '{}')
-        };
+    <!-- Price Changes Panel -->
+    <div class="panel" id="price-changes-panel">
+        <div class="analytics-grid">
+            <div class="kpi-card accent-primary">
+                <div class="kpi-value" id="pcTotal">--</div>
+                <div class="kpi-label">Total Changes (30d)</div>
+            </div>
+            <div class="kpi-card accent-success">
+                <div class="kpi-value" id="pcDrops">--</div>
+                <div class="kpi-label">Price Drops</div>
+            </div>
+            <div class="kpi-card accent-danger">
+                <div class="kpi-value" id="pcRaises">--</div>
+                <div class="kpi-label">Price Raises</div>
+            </div>
+            <div class="kpi-card accent-info">
+                <div class="kpi-value" id="pcAvg">--</div>
+                <div class="kpi-label">Avg Change</div>
+            </div>
+        </div>
 
-        let currentPresetTable = null;
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Price Changes</h2>
+                <button class="preset-btn" onclick="clearPriceChangeFilters()">Clear Filters</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label">City</div>
+                                    <div class="multi-select" data-col="city" data-tbl="priceChanges"></div>
+                                </div>
+                            </th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Old Price</th>
+                            <th>New Price</th>
+                            <th>
+                                <div class="th-content">
+                                    <div class="th-label">Direction</div>
+                                    <div class="multi-select" data-col="direction" data-tbl="priceChanges"></div>
+                                </div>
+                            </th>
+                            <th>Change</th>
+                            <th>Change %</th>
+                            <th>Date</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="priceChangesBody"></tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <div class="pagination-info" id="priceChangesPaginationInfo"></div>
+                <div class="pagination-controls" id="priceChangesPagination"></div>
+            </div>
+        </div>
+    </div>
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            initTabs();
-            initFilters();
-            loadPresets();
-            refreshAll();
+    <!-- Runs Panel -->
+    <div class="panel" id="runs-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Scrape Run History</h2>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Type</th>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>Pages</th>
+                            <th>Listings</th>
+                            <th>New</th>
+                            <th>Updated</th>
+                            <th>Price Chg</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="runsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Save Preset Modal -->
+<div class="modal-overlay" id="presetModal">
+    <div class="modal">
+        <h3>Save Filter Preset</h3>
+        <input type="text" id="presetName" placeholder="Preset name...">
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closePresetModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmSavePreset()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000' : location.origin;
+
+const AUTO_REFRESH_MS = 60000;
+const COLORS = ['#4f46e5','#0284c7','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d','#ea580c'];
+
+const S = {
+    listings: { data: [], allData: [], filters: {}, sort: { col: 'last_seen_at', ord: 'desc' }, page: 1, limit: 50 },
+    priceChanges: { data: [], allData: [], filters: {}, page: 1, limit: 50 },
+    runs: { data: [] },
+    stats: {},
+    presets: JSON.parse(localStorage.getItem('yad2_presets') || '[]'),
+};
+
+let openDD = null;
+let refreshTimer = null;
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    initTabs();
+    initRangeFilters();
+    renderPresets();
+    loadAll();
+    refreshTimer = setInterval(loadAll, AUTO_REFRESH_MS);
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.multi-select')) closeAllDD();
+    });
+});
+
+function initTabs() {
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(`${tab.dataset.tab}-panel`).classList.add('active');
         });
+    });
+}
 
-        // Tabs
-        function initTabs() {
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-                    tab.classList.add('active');
-                    document.getElementById(`${tab.dataset.tab}-panel`).classList.add('active');
-                });
-            });
-        }
+function initRangeFilters() {
+    document.querySelectorAll('.range-filter input').forEach(input => {
+        input.addEventListener('input', debounce(() => {
+            const c = input.closest('.range-filter');
+            S.listings.filters.price_min = parseInt(c.querySelector('[data-range="min"]').value) || null;
+            S.listings.filters.price_max = parseInt(c.querySelector('[data-range="max"]').value) || null;
+            S.listings.page = 1;
+            filterAndRender('listings');
+        }, 400));
+    });
+}
 
-        // Filters
-        function initFilters() {
-            // Listings filters
-            document.querySelectorAll('#listingsTable .column-filter').forEach(input => {
-                input.addEventListener('input', debounce(() => {
-                    state.listings.filters[input.dataset.column] = input.value;
-                    state.listings.page = 1;
-                    loadListings();
-                }, 300));
-            });
+// ─── DATA LOADING ───────────────────────────────────────────────────────────
 
-            // Price changes filters
-            document.querySelectorAll('#priceChangesTable .column-filter').forEach(input => {
-                input.addEventListener('input', debounce(() => {
-                    state.priceChanges.filters[input.dataset.column] = input.value;
-                    state.priceChanges.page = 1;
-                    loadPriceChanges();
-                }, 300));
-            });
+async function api(endpoint, params = {}) {
+    const url = new URL(`${API_BASE}${endpoint}`);
+    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') url.searchParams.set(k, v); });
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.json();
+}
 
-            // Sort headers
-            document.querySelectorAll('.th-label[data-sort]').forEach(header => {
-                header.addEventListener('click', () => {
-                    const column = header.dataset.sort;
-                    if (state.listings.sort.column === column) {
-                        state.listings.sort.order = state.listings.sort.order === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        state.listings.sort.column = column;
-                        state.listings.sort.order = 'desc';
-                    }
-                    loadListings();
-                });
-            });
+async function loadAll() {
+    await Promise.all([loadStats(), loadListings(), loadPriceChanges(), loadRuns()]);
+    document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+}
 
-            // City search
-            document.getElementById('citySearch').addEventListener('input', debounce((e) => {
-                state.cities.filter = e.target.value;
-                renderCities();
-            }, 300));
-        }
+async function loadStats() {
+    try {
+        const s = await api('/stats');
+        S.stats = s;
+        document.getElementById('hkTotal').textContent = fmtN(s.active_listings);
+        document.getElementById('hkCities').textContent = fmtN(s.cities);
+        document.getElementById('hkAvgPrice').textContent = `${fmtN(s.avg_price)}`;
+        document.getElementById('hkChanges').textContent = fmtN(s.price_history?.changes_last_24h || 0);
+        document.getElementById('overviewBadge').textContent = fmtN(s.active_listings);
 
-        // API Calls
-        async function fetchAPI(endpoint, params = {}) {
-            const url = new URL(`${API_BASE}${endpoint}`);
-            Object.entries(params).forEach(([k, v]) => {
-                if (v !== undefined && v !== null && v !== '') url.searchParams.append(k, v);
-            });
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`API error: ${response.status}`);
-            return response.json();
-        }
+        document.getElementById('kpiActive').textContent = fmtN(s.active_listings);
+        document.getElementById('kpiTotal').textContent = fmtN(s.total_listings);
+        document.getElementById('kpiAvg').textContent = `${fmtN(s.avg_price)}`;
+        document.getElementById('kpiMin').textContent = `${fmtN(s.min_price)}`;
+        document.getElementById('kpiMax').textContent = `${fmtN(s.max_price)}`;
+        document.getElementById('kpiCities').textContent = fmtN(s.cities);
+        document.getElementById('kpiNeighborhoods').textContent = fmtN(s.neighborhoods);
+        document.getElementById('kpiChanges7d').textContent = fmtN(s.price_history?.changes_last_7d || 0);
 
-        async function loadStats() {
-            try {
-                const stats = await fetchAPI('/stats');
-                document.getElementById('totalListings').textContent = formatNumber(stats.active_listings);
-                document.getElementById('totalCities').textContent = formatNumber(stats.cities);
-                document.getElementById('avgPrice').textContent = `₪${formatNumber(stats.avg_price)}`;
-                document.getElementById('priceChanges24h').textContent = formatNumber(stats.price_history?.changes_last_24h || 0);
-            } catch (e) {
-                console.error('Failed to load stats:', e);
+        renderTopCities(s.top_cities || []);
+        renderRoomsChart(s.rooms_distribution || []);
+    } catch (e) { console.error('Stats error:', e); }
+}
+
+async function loadListings() {
+    try {
+        const d = await api('/listings', { limit: 1000, active_only: true });
+        S.listings.allData = d.listings;
+        document.getElementById('listingsBadge').textContent = fmtN(d.total);
+        buildFilters('listings');
+        filterAndRender('listings');
+    } catch (e) {
+        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadPriceChanges() {
+    try {
+        const d = await api('/price-changes', { limit: 500, days: 30 });
+        S.priceChanges.allData = d.changes;
+        document.getElementById('priceChangesBadge').textContent = fmtN(d.changes.length);
+
+        const drops = d.changes.filter(c => c.price_diff < 0);
+        const raises = d.changes.filter(c => c.price_diff > 0);
+        const avg = d.changes.length ? Math.round(d.changes.reduce((s, c) => s + c.price_diff, 0) / d.changes.length) : 0;
+
+        document.getElementById('pcTotal').textContent = fmtN(d.changes.length);
+        document.getElementById('pcDrops').textContent = fmtN(drops.length);
+        document.getElementById('pcRaises').textContent = fmtN(raises.length);
+        document.getElementById('pcAvg').textContent = `${fmtN(avg)}`;
+
+        buildFilters('priceChanges');
+        filterAndRender('priceChanges');
+        renderLatestDrops(drops.slice(0, 8));
+    } catch (e) {
+        document.getElementById('priceChangesBody').innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadRuns() {
+    try {
+        const d = await api('/runs', { limit: 50 });
+        S.runs.data = d.runs;
+        document.getElementById('runsBadge').textContent = fmtN(d.runs.length);
+        renderRuns();
+        renderScraperStatus(d.runs);
+        renderRecentRuns(d.runs.slice(0, 8));
+    } catch (e) {
+        document.getElementById('runsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+// ─── MULTI-SELECT FILTER SYSTEM ─────────────────────────────────────────────
+
+function buildFilters(tbl) {
+    document.querySelectorAll(`.multi-select[data-tbl="${tbl}"]`).forEach(container => {
+        const col = container.dataset.col;
+        const opts = getOptions(tbl, col);
+        renderMS(container, opts, col, tbl);
+    });
+}
+
+function getOptions(tbl, col) {
+    const data = S[tbl].allData;
+    const filters = S[tbl].filters;
+
+    // Apply all OTHER filters to get cascaded counts
+    let filtered = data;
+    Object.entries(filters).forEach(([fc, vals]) => {
+        if (fc === col || fc === 'price_min' || fc === 'price_max' || !vals?.length) return;
+        filtered = filtered.filter(item => {
+            if (fc === 'is_merchant') return vals.includes(String(item.is_merchant));
+            if (fc === 'direction') {
+                return (vals.includes('down') && item.price_diff < 0) || (vals.includes('up') && item.price_diff > 0);
             }
+            return vals.includes(String(item[fc] || ''));
+        });
+    });
+
+    if (col === 'is_merchant') {
+        return [
+            { value: 'true', label: 'Agent', count: filtered.filter(d => d.is_merchant).length },
+            { value: 'false', label: 'Private', count: filtered.filter(d => !d.is_merchant).length },
+        ];
+    }
+    if (col === 'direction') {
+        return [
+            { value: 'down', label: 'Drop', count: filtered.filter(d => d.price_diff < 0).length },
+            { value: 'up', label: 'Raise', count: filtered.filter(d => d.price_diff > 0).length },
+        ];
+    }
+
+    const counts = {};
+    filtered.forEach(item => {
+        const v = String(item[col] || '');
+        if (v) counts[v] = (counts[v] || 0) + 1;
+    });
+
+    return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 150)
+        .map(([value, count]) => ({ value, label: value, count }));
+}
+
+function renderMS(container, options, col, tbl) {
+    const sel = S[tbl].filters[col] || [];
+    const id = `dd-${tbl}-${col}`;
+
+    container.innerHTML = `
+        <div class="ms-trigger ${sel.length ? 'has-selection' : ''}" onclick="toggleDD(event,'${id}')">
+            <span>${sel.length ? sel.length + ' selected' : 'All'}</span>
+            ${sel.length ? `<span class="ms-count">${sel.length}</span>` : ''}
+            <span class="ms-arrow">&#9660;</span>
+        </div>
+        <div class="ms-dropdown" id="${id}">
+            <div class="ms-search">
+                <input type="text" placeholder="Search..." oninput="searchDD(this)">
+            </div>
+            <div class="ms-actions">
+                <button onclick="msAll('${tbl}','${col}','${id}')">Select All</button>
+                <button onclick="msNone('${tbl}','${col}','${id}')">Clear</button>
+            </div>
+            <div class="ms-options">
+                ${options.map(o => `
+                    <label class="ms-option" data-v="${o.value}">
+                        <input type="checkbox" value="${o.value}" ${sel.includes(o.value) ? 'checked' : ''}
+                            onchange="msChange('${tbl}','${col}','${o.value}',this.checked)">
+                        <span class="ms-option-label">${o.label}</span>
+                        <span class="ms-option-count">${o.count}</span>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function toggleDD(e, id) {
+    e.stopPropagation();
+    const dd = document.getElementById(id);
+    const trigger = dd.previousElementSibling;
+
+    if (openDD && openDD !== dd) {
+        openDD.classList.remove('open');
+        openDD.previousElementSibling.classList.remove('open');
+    }
+
+    dd.classList.toggle('open');
+    trigger.classList.toggle('open');
+    openDD = dd.classList.contains('open') ? dd : null;
+
+    if (openDD) {
+        const input = dd.querySelector('.ms-search input');
+        if (input) setTimeout(() => input.focus(), 50);
+    }
+}
+
+function closeAllDD() {
+    document.querySelectorAll('.ms-dropdown.open').forEach(d => {
+        d.classList.remove('open');
+        d.previousElementSibling.classList.remove('open');
+    });
+    openDD = null;
+}
+
+function searchDD(input) {
+    const q = input.value.toLowerCase();
+    input.closest('.ms-dropdown').querySelectorAll('.ms-option').forEach(o => {
+        o.style.display = o.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+function msAll(tbl, col, id) {
+    const dd = document.getElementById(id);
+    const visible = dd.querySelectorAll('.ms-option:not([style*="display: none"]) input');
+    const vals = Array.from(visible).map(cb => { cb.checked = true; return cb.value; });
+    S[tbl].filters[col] = vals;
+    S[tbl].page = 1;
+    buildFilters(tbl);
+    filterAndRender(tbl);
+}
+
+function msNone(tbl, col) {
+    S[tbl].filters[col] = [];
+    S[tbl].page = 1;
+    buildFilters(tbl);
+    filterAndRender(tbl);
+}
+
+function msChange(tbl, col, val, checked) {
+    if (!S[tbl].filters[col]) S[tbl].filters[col] = [];
+    if (checked) {
+        if (!S[tbl].filters[col].includes(val)) S[tbl].filters[col].push(val);
+    } else {
+        S[tbl].filters[col] = S[tbl].filters[col].filter(v => v !== val);
+    }
+    S[tbl].page = 1;
+    // Rebuild ALL filter dropdowns for this table (cascading)
+    buildFilters(tbl);
+    filterAndRender(tbl);
+}
+
+// ─── FILTERING & RENDERING ──────────────────────────────────────────────────
+
+function filterAndRender(tbl) {
+    if (tbl === 'listings') filterListings();
+    else if (tbl === 'priceChanges') filterPriceChanges();
+}
+
+function filterListings() {
+    const f = S.listings.filters;
+    let data = S.listings.allData;
+
+    Object.entries(f).forEach(([col, vals]) => {
+        if (col === 'price_min' || col === 'price_max' || !vals?.length) return;
+        if (col === 'is_merchant') {
+            data = data.filter(i => vals.includes(String(i.is_merchant)));
+        } else {
+            data = data.filter(i => vals.includes(String(i[col] || '')));
         }
+    });
 
-        async function loadListings() {
-            const tbody = document.getElementById('listingsBody');
-            tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+    if (f.price_min) data = data.filter(i => i.price_numeric >= f.price_min);
+    if (f.price_max) data = data.filter(i => i.price_numeric <= f.price_max);
 
-            try {
-                const filters = state.listings.filters;
-                const params = {
-                    limit: state.listings.limit,
-                    offset: (state.listings.page - 1) * state.listings.limit,
-                    sort_by: state.listings.sort.column,
-                    sort_order: state.listings.sort.order,
-                    active_only: true
-                };
+    // Sort
+    const { col, ord } = S.listings.sort;
+    data.sort((a, b) => {
+        let av = a[col], bv = b[col];
+        if (av == null) av = '';
+        if (bv == null) bv = '';
+        if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv || '').toLowerCase(); }
+        if (av < bv) return ord === 'asc' ? -1 : 1;
+        if (av > bv) return ord === 'asc' ? 1 : -1;
+        return 0;
+    });
 
-                // Apply filters
-                if (filters.city) params.city = filters.city;
-                if (filters.neighborhood) params.neighborhood = filters.neighborhood;
-                if (filters.is_merchant) params.is_merchant = filters.is_merchant;
+    S.listings.data = data;
 
-                // Price range
-                if (filters.price) {
-                    const [min, max] = filters.price.split('-').map(s => parseInt(s.trim()));
-                    if (min) params.min_price = min;
-                    if (max) params.max_price = max;
-                }
+    const start = (S.listings.page - 1) * S.listings.limit;
+    const page = data.slice(start, start + S.listings.limit);
 
-                // Rooms range
-                if (filters.rooms) {
-                    const [min, max] = filters.rooms.split('-').map(s => parseInt(s.trim()));
-                    if (min) params.min_rooms = min;
-                    if (max) params.max_rooms = max;
-                }
+    renderListingsTable(page);
+    renderPagination('listings', data.length);
+    renderActiveChips();
+    updateSortIcons();
+}
 
-                const data = await fetchAPI('/listings', params);
-                state.listings.data = data.listings;
-                state.listings.total = data.total;
+function renderListingsTable(listings) {
+    const tbody = document.getElementById('listingsBody');
+    if (!listings.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No listings found</td></tr>';
+        return;
+    }
 
-                document.getElementById('listingsCount').textContent = formatNumber(data.total);
-                renderListings();
-                renderPagination('listings', data.total);
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="10" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
-            }
+    tbody.innerHTML = listings.map(l => `
+        <tr>
+            <td>${l.city || '-'}</td>
+            <td>${l.neighborhood || '-'}</td>
+            <td>${l.street || '-'}</td>
+            <td>${l.rooms || '-'}</td>
+            <td><strong>${fmtP(l.price_numeric)}</strong></td>
+            <td>${l.size_sqm || '-'}</td>
+            <td>${l.floor || '-'}</td>
+            <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+            <td>${fmtD(l.first_seen_at)}</td>
+            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+        </tr>
+    `).join('');
+}
+
+function filterPriceChanges() {
+    const f = S.priceChanges.filters;
+    let data = S.priceChanges.allData;
+
+    Object.entries(f).forEach(([col, vals]) => {
+        if (!vals?.length) return;
+        if (col === 'direction') {
+            data = data.filter(i => (vals.includes('down') && i.price_diff < 0) || (vals.includes('up') && i.price_diff > 0));
+        } else {
+            data = data.filter(i => vals.includes(String(i[col] || '')));
         }
+    });
 
-        async function loadPriceChanges() {
-            const tbody = document.getElementById('priceChangesBody');
-            tbody.innerHTML = '<tr><td colspan="9"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+    S.priceChanges.data = data;
 
-            try {
-                const filters = state.priceChanges.filters;
-                const params = {
-                    limit: state.priceChanges.limit,
-                    offset: (state.priceChanges.page - 1) * state.priceChanges.limit,
-                    days: 7
-                };
+    const start = (S.priceChanges.page - 1) * S.priceChanges.limit;
+    const page = data.slice(start, start + S.priceChanges.limit);
 
-                if (filters.city) params.city = filters.city;
+    renderPriceChangesTable(page);
+    renderPagination('priceChanges', data.length);
+}
 
-                const data = await fetchAPI('/price-changes', params);
+function renderPriceChangesTable(changes) {
+    const tbody = document.getElementById('priceChangesBody');
+    if (!changes.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No price changes found</td></tr>';
+        return;
+    }
 
-                // Apply client-side filters
-                let filtered = data.changes;
-                if (filters.neighborhood) {
-                    filtered = filtered.filter(c => c.neighborhood?.toLowerCase().includes(filters.neighborhood.toLowerCase()));
-                }
-                if (filters.street) {
-                    filtered = filtered.filter(c => c.street?.toLowerCase().includes(filters.street.toLowerCase()));
-                }
-                if (filters.rooms) {
-                    filtered = filtered.filter(c => c.rooms?.includes(filters.rooms));
-                }
-                if (filters.direction === 'down') {
-                    filtered = filtered.filter(c => c.price_diff < 0);
-                } else if (filters.direction === 'up') {
-                    filtered = filtered.filter(c => c.price_diff > 0);
-                }
+    tbody.innerHTML = changes.map(c => {
+        const down = c.price_diff < 0;
+        const cls = down ? 'price-down' : 'price-up';
+        const arrow = down ? '&#9660;' : '&#9650;';
+        return `
+            <tr>
+                <td>${c.city || '-'}</td>
+                <td>${c.neighborhood || '-'}</td>
+                <td>${c.street || '-'}</td>
+                <td>${c.rooms || '-'}</td>
+                <td>${fmtP(c.previous_price)}</td>
+                <td><strong>${fmtP(c.price_numeric)}</strong></td>
+                <td><span class="${cls}">${arrow}</span></td>
+                <td class="${cls}">${fmtP(Math.abs(c.price_diff))}</td>
+                <td class="${cls}">${c.price_diff_percent}%</td>
+                <td>${fmtDT(c.recorded_at)}</td>
+                <td><a href="https://www.yad2.co.il/item/${c.listing_id}" target="_blank">View</a></td>
+            </tr>
+        `;
+    }).join('');
+}
 
-                state.priceChanges.data = filtered;
-                state.priceChanges.total = data.total;
+function renderRuns() {
+    const tbody = document.getElementById('runsBody');
+    const runs = S.runs.data;
 
-                // Update stats
-                const drops = data.changes.filter(c => c.price_diff < 0);
-                const raises = data.changes.filter(c => c.price_diff > 0);
-                const avgChange = data.changes.length > 0
-                    ? Math.round(data.changes.reduce((sum, c) => sum + c.price_diff, 0) / data.changes.length)
-                    : 0;
+    if (!runs.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No runs yet</td></tr>';
+        return;
+    }
 
-                document.getElementById('priceChangesCount').textContent = formatNumber(data.total);
-                document.getElementById('priceChangesTotal').textContent = formatNumber(data.total);
-                document.getElementById('priceDrops').textContent = formatNumber(drops.length);
-                document.getElementById('priceRaises').textContent = formatNumber(raises.length);
-                document.getElementById('avgPriceChange').textContent = `₪${formatNumber(avgChange)}`;
+    tbody.innerHTML = runs.map(r => {
+        const dur = r.finished_at && r.started_at ? fmtDur(new Date(r.finished_at) - new Date(r.started_at)) : (r.status === 'running' ? 'Running...' : '-');
+        const statusCls = r.status === 'completed' ? 'success' : r.status === 'running' ? 'info' : 'danger';
+        const type = r.run_type || 'full';
+        const typeBadge = type === 'smart' ? '<span class="badge badge-info">Smart</span>' : '<span class="badge badge-neutral">Full</span>';
 
-                renderPriceChanges();
-                renderPagination('priceChanges', filtered.length);
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="9" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
-            }
+        return `
+            <tr>
+                <td>${r.id}</td>
+                <td>${typeBadge}</td>
+                <td>${fmtDT(r.started_at)}</td>
+                <td>${dur}</td>
+                <td>${r.pages_scraped || 0}/${r.total_pages || 0}</td>
+                <td>${fmtN(r.listings_found || 0)}</td>
+                <td>${fmtN(r.listings_new || 0)}</td>
+                <td>${fmtN(r.listings_updated || 0)}</td>
+                <td>${fmtN(r.price_changes || 0)}</td>
+                <td><span class="badge badge-${statusCls}">${r.status}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ─── CHARTS ─────────────────────────────────────────────────────────────────
+
+function renderTopCities(cities) {
+    const el = document.getElementById('topCitiesChart');
+    if (!cities.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+    const max = cities[0].count;
+    el.innerHTML = `<div class="bar-chart">${cities.slice(0, 10).map((c, i) => `
+        <div class="bar-row">
+            <div class="bar-label" title="${c.city}">${c.city}</div>
+            <div class="bar-track">
+                <div class="bar-fill" style="width:${(c.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
+                    <span>${c.count}</span>
+                </div>
+            </div>
+        </div>
+    `).join('')}</div>`;
+}
+
+function renderRoomsChart(rooms) {
+    const el = document.getElementById('roomsChart');
+    if (!rooms.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+    const max = Math.max(...rooms.map(r => r.count));
+    el.innerHTML = `<div class="bar-chart">${rooms.filter(r => r.rooms).slice(0, 10).map((r, i) => `
+        <div class="bar-row">
+            <div class="bar-label">${r.rooms} rooms</div>
+            <div class="bar-track">
+                <div class="bar-fill" style="width:${(r.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
+                    <span>${r.count}</span>
+                </div>
+            </div>
+        </div>
+    `).join('')}</div>`;
+}
+
+function renderScraperStatus(runs) {
+    const el = document.getElementById('scraperStatusContainer');
+    const latest = runs[0];
+    if (!latest) { el.innerHTML = ''; return; }
+
+    const isRunning = latest.status === 'running';
+    const pct = latest.total_pages ? Math.round((latest.pages_scraped || 0) / latest.total_pages * 100) : 0;
+    const type = latest.run_type || 'full';
+
+    el.innerHTML = `
+        <div class="scraper-status">
+            <div class="scraper-status-icon ${isRunning ? 'running' : 'idle'}">${isRunning ? '&#9881;' : '&#10003;'}</div>
+            <div class="scraper-status-text">
+                <div class="scraper-status-title">${isRunning ? `${type.toUpperCase()} scrape running...` : `Last ${type} scrape completed`}</div>
+                <div class="scraper-status-detail">
+                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} | ${latest.listings_new || 0} new` :
+                    `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new`}
+                </div>
+            </div>
+            ${isRunning ? `<div class="scraper-status-progress"><div class="scraper-status-progress-fill" style="width:${pct}%"></div></div>` : ''}
+        </div>
+    `;
+}
+
+function renderRecentRuns(runs) {
+    const el = document.getElementById('recentRunsChart');
+    if (!runs.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:0.5rem;">${runs.map(r => {
+        const dur = r.finished_at && r.started_at ? fmtDur(new Date(r.finished_at) - new Date(r.started_at)) : '-';
+        const type = r.run_type || 'full';
+        const statusColor = r.status === 'completed' ? 'var(--success)' : r.status === 'running' ? 'var(--info)' : 'var(--danger)';
+        return `
+            <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.75rem;padding:0.375rem 0;border-bottom:1px solid var(--gray-100);">
+                <span style="width:6px;height:6px;border-radius:50%;background:${statusColor};flex-shrink:0;"></span>
+                <span style="color:var(--gray-500);width:30px;">#${r.id}</span>
+                <span class="badge badge-${type === 'smart' ? 'info' : 'neutral'}" style="font-size:0.5625rem;">${type}</span>
+                <span style="flex:1;color:var(--gray-600);">${r.pages_scraped || 0}p / ${fmtN(r.listings_new || 0)} new</span>
+                <span style="color:var(--gray-400);">${dur}</span>
+            </div>
+        `;
+    }).join('')}</div>`;
+}
+
+function renderLatestDrops(drops) {
+    const el = document.getElementById('latestDropsChart');
+    if (!drops.length) { el.innerHTML = '<div class="empty-state">No price drops</div>'; return; }
+
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:0.5rem;">${drops.map(d => `
+        <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.75rem;padding:0.375rem 0;border-bottom:1px solid var(--gray-100);">
+            <span style="color:var(--success);font-weight:600;">&#9660;</span>
+            <span style="flex:1;color:var(--gray-700);">${d.city}, ${d.street || d.neighborhood || ''}</span>
+            <span style="text-decoration:line-through;color:var(--gray-400);">${fmtP(d.previous_price)}</span>
+            <span style="font-weight:600;color:var(--success);">${fmtP(d.price_numeric)}</span>
+            <span style="color:var(--success);font-size:0.625rem;">${d.price_diff_percent}%</span>
+        </div>
+    `).join('')}</div>`;
+}
+
+// ─── SORTING ────────────────────────────────────────────────────────────────
+
+function sortListings(col) {
+    if (S.listings.sort.col === col) {
+        S.listings.sort.ord = S.listings.sort.ord === 'asc' ? 'desc' : 'asc';
+    } else {
+        S.listings.sort.col = col;
+        S.listings.sort.ord = 'asc';
+    }
+    S.listings.page = 1;
+    filterAndRender('listings');
+}
+
+function updateSortIcons() {
+    document.querySelectorAll('.sort-icon').forEach(icon => {
+        const col = icon.dataset.sort;
+        if (col === S.listings.sort.col) {
+            icon.classList.add('active');
+            icon.innerHTML = S.listings.sort.ord === 'asc' ? '&#9650;' : '&#9660;';
+        } else {
+            icon.classList.remove('active');
+            icon.innerHTML = '&#9650;';
         }
+    });
+}
 
-        async function loadRuns() {
-            const tbody = document.getElementById('runsBody');
-            tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+// ─── ACTIVE FILTER CHIPS ────────────────────────────────────────────────────
 
-            try {
-                const data = await fetchAPI('/runs', { limit: 50 });
-                state.runs.data = data.runs;
-                document.getElementById('runsCount').textContent = formatNumber(data.runs.length);
-                renderRuns();
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="10" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
-            }
+function renderActiveChips() {
+    const el = document.getElementById('activeFiltersChips');
+    const f = S.listings.filters;
+    const chips = [];
+
+    Object.entries(f).forEach(([col, vals]) => {
+        if (col === 'price_min' && vals) chips.push({ label: `Min: ${fmtP(vals)}`, col, type: 'range' });
+        else if (col === 'price_max' && vals) chips.push({ label: `Max: ${fmtP(vals)}`, col, type: 'range' });
+        else if (vals?.length) {
+            const display = vals.length <= 2 ? vals.join(', ') : `${vals.length} selected`;
+            chips.push({ label: `${colName(col)}: ${display}`, col, type: 'multi' });
         }
+    });
 
-        async function loadCities() {
-            const tbody = document.getElementById('citiesBody');
-            tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><div class="spinner"></div>טוען...</div></td></tr>';
+    if (!chips.length) { el.innerHTML = ''; return; }
 
-            try {
-                const data = await fetchAPI('/cities');
-                state.cities.data = data.cities;
-                document.getElementById('citiesCount').textContent = formatNumber(data.cities.length);
-                renderCities();
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="4" class="empty-state">שגיאה בטעינה: ${e.message}</td></tr>`;
-            }
-        }
+    el.innerHTML = chips.map(c => `
+        <span class="filter-chip">
+            ${c.label}
+            <span class="filter-chip-remove" onclick="removeFilter('${c.col}','${c.type}')">&#215;</span>
+        </span>
+    `).join('') + `<button class="clear-all-btn" onclick="clearAllFilters()">Clear all</button>`;
+}
 
-        // Renderers
-        function renderListings() {
-            const tbody = document.getElementById('listingsBody');
-            const listings = state.listings.data;
+function colName(col) {
+    const map = { city: 'City', neighborhood: 'Neighborhood', rooms: 'Rooms', size_sqm: 'Sqm', floor: 'Floor', is_merchant: 'Type', street: 'Street' };
+    return map[col] || col;
+}
 
-            // Client-side filter for street, size, floor
-            let filtered = listings;
-            const filters = state.listings.filters;
-            if (filters.street) {
-                filtered = filtered.filter(l => l.street?.toLowerCase().includes(filters.street.toLowerCase()));
-            }
-            if (filters.size_sqm) {
-                filtered = filtered.filter(l => l.size_sqm?.includes(filters.size_sqm));
-            }
-            if (filters.floor) {
-                filtered = filtered.filter(l => l.floor?.includes(filters.floor));
-            }
+function removeFilter(col, type) {
+    if (type === 'range') {
+        S.listings.filters[col] = null;
+        if (col === 'price_min') document.querySelector('.range-filter [data-range="min"]').value = '';
+        if (col === 'price_max') document.querySelector('.range-filter [data-range="max"]').value = '';
+    } else {
+        S.listings.filters[col] = [];
+    }
+    S.listings.page = 1;
+    buildFilters('listings');
+    filterAndRender('listings');
+}
 
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="empty-state">לא נמצאו דירות</td></tr>';
-                return;
-            }
+function clearAllFilters() {
+    S.listings.filters = {};
+    S.listings.page = 1;
+    document.querySelectorAll('.range-filter input').forEach(i => i.value = '');
+    buildFilters('listings');
+    filterAndRender('listings');
+    toast('Filters cleared');
+}
 
-            tbody.innerHTML = filtered.map(l => `
-                <tr>
-                    <td>${l.city || '-'}</td>
-                    <td>${l.neighborhood || '-'}</td>
-                    <td>${l.street || '-'}</td>
-                    <td>${l.rooms || '-'}</td>
-                    <td><strong>₪${formatNumber(l.price_numeric)}</strong></td>
-                    <td>${l.size_sqm || '-'}</td>
-                    <td>${l.floor || '-'}</td>
-                    <td>${l.is_merchant ? '<span class="badge badge-warning">תיווך</span>' : '<span class="badge badge-success">פרטי</span>'}</td>
-                    <td>${formatDate(l.first_seen_at)}</td>
-                    <td>
-                        <a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">צפה ביד2</a>
-                    </td>
-                </tr>
-            `).join('');
-        }
+function clearPriceChangeFilters() {
+    S.priceChanges.filters = {};
+    S.priceChanges.page = 1;
+    buildFilters('priceChanges');
+    filterAndRender('priceChanges');
+}
 
-        function renderPriceChanges() {
-            const tbody = document.getElementById('priceChangesBody');
-            const changes = state.priceChanges.data;
+function filterByCity(city) {
+    S.listings.filters = { city: [city] };
+    S.listings.page = 1;
+    document.querySelector('[data-tab="listings"]').click();
+    buildFilters('listings');
+    filterAndRender('listings');
+}
 
-            if (changes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">לא נמצאו שינויי מחיר</td></tr>';
-                return;
-            }
+// ─── PAGINATION ─────────────────────────────────────────────────────────────
 
-            tbody.innerHTML = changes.map(c => {
-                const isDown = c.price_diff < 0;
-                const changeClass = isDown ? 'price-down' : 'price-up';
-                const arrow = isDown ? '↓' : '↑';
-                return `
-                    <tr>
-                        <td>${c.city || '-'}</td>
-                        <td>${c.neighborhood || '-'}</td>
-                        <td>${c.street || '-'}</td>
-                        <td>${c.rooms || '-'}</td>
-                        <td>₪${formatNumber(c.previous_price)}</td>
-                        <td><strong>₪${formatNumber(c.price_numeric)}</strong></td>
-                        <td class="${changeClass}">
-                            ${arrow} ₪${formatNumber(Math.abs(c.price_diff))} (${c.price_diff_percent}%)
-                        </td>
-                        <td>${formatDateTime(c.recorded_at)}</td>
-                        <td>
-                            <a href="https://www.yad2.co.il/item/${c.listing_id}" target="_blank">צפה</a>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
+function renderPagination(tbl, total) {
+    const st = S[tbl];
+    const totalPages = Math.ceil(total / st.limit);
+    const info = document.getElementById(`${tbl}PaginationInfo`);
+    const controls = document.getElementById(`${tbl}Pagination`);
 
-        function renderRuns() {
-            const tbody = document.getElementById('runsBody');
-            const runs = state.runs.data;
+    const start = Math.min((st.page - 1) * st.limit + 1, total);
+    const end = Math.min(st.page * st.limit, total);
+    info.textContent = total ? `${start}-${end} of ${fmtN(total)}` : 'No results';
 
-            if (runs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="empty-state">אין היסטוריית סריקות</td></tr>';
-                return;
-            }
+    if (totalPages <= 1) { controls.innerHTML = ''; return; }
 
-            tbody.innerHTML = runs.map(r => {
-                const duration = r.finished_at && r.started_at
-                    ? formatDuration(new Date(r.finished_at) - new Date(r.started_at))
-                    : '-';
-                const statusBadge = r.status === 'completed'
-                    ? '<span class="badge badge-success">הושלם</span>'
-                    : r.status === 'running'
-                    ? '<span class="badge badge-info">רץ</span>'
-                    : '<span class="badge badge-danger">נכשל</span>';
-                return `
-                    <tr>
-                        <td>${r.id}</td>
-                        <td>${formatDateTime(r.started_at)}</td>
-                        <td>${r.finished_at ? formatDateTime(r.finished_at) : '-'}</td>
-                        <td>${duration}</td>
-                        <td>${r.pages_scraped || 0}/${r.total_pages || 0}</td>
-                        <td>${formatNumber(r.listings_found || 0)}</td>
-                        <td>${formatNumber(r.listings_new || 0)}</td>
-                        <td>${formatNumber(r.listings_updated || 0)}</td>
-                        <td>${formatNumber(r.price_changes || 0)}</td>
-                        <td>${statusBadge}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
+    const pages = pgNums(st.page, totalPages);
+    controls.innerHTML =
+        `<button class="page-btn" onclick="goPage('${tbl}',${st.page - 1})" ${st.page === 1 ? 'disabled' : ''}>&laquo;</button>` +
+        pages.map(p => p === '...' ? '<span style="padding:0 0.375rem;color:var(--gray-400)">...</span>' :
+            `<button class="page-btn ${p === st.page ? 'active' : ''}" onclick="goPage('${tbl}',${p})">${p}</button>`
+        ).join('') +
+        `<button class="page-btn" onclick="goPage('${tbl}',${st.page + 1})" ${st.page === totalPages ? 'disabled' : ''}>&raquo;</button>`;
+}
 
-        function renderCities() {
-            const tbody = document.getElementById('citiesBody');
-            let cities = state.cities.data;
+function pgNums(cur, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const p = [1];
+    if (cur > 3) p.push('...');
+    for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) p.push(i);
+    if (cur < total - 2) p.push('...');
+    p.push(total);
+    return p;
+}
 
-            if (state.cities.filter) {
-                cities = cities.filter(c => c.city?.toLowerCase().includes(state.cities.filter.toLowerCase()));
-            }
+function goPage(tbl, page) {
+    S[tbl].page = page;
+    filterAndRender(tbl);
+    document.querySelector(`#${tbl === 'priceChanges' ? 'price-changes' : tbl}-panel .table-container`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-            if (cities.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">לא נמצאו ערים</td></tr>';
-                return;
-            }
+// ─── PRESETS ────────────────────────────────────────────────────────────────
 
-            tbody.innerHTML = cities.map((c, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${c.city}</td>
-                    <td>${formatNumber(c.listings_count)}</td>
-                    <td>
-                        <a href="#" onclick="filterByCity('${c.city}'); return false;">הצג דירות</a>
-                    </td>
-                </tr>
-            `).join('');
-        }
+function renderPresets() {
+    const el = document.getElementById('listingsPresets');
+    el.innerHTML = S.presets.map((p, i) => `
+        <button class="preset-btn" onclick="applyPreset(${i})">
+            ${p.name}
+            <span onclick="event.stopPropagation();deletePreset(${i})" style="opacity:0.5;margin-right:4px;cursor:pointer;">&#215;</span>
+        </button>
+    `).join('');
+}
 
-        function renderPagination(table, total) {
-            const st = state[table];
-            const totalPages = Math.ceil(total / st.limit);
-            const info = document.getElementById(`${table}PaginationInfo`);
-            const controls = document.getElementById(`${table}Pagination`);
+function savePreset() {
+    document.getElementById('presetModal').classList.add('active');
+    document.getElementById('presetName').focus();
+}
 
-            const start = (st.page - 1) * st.limit + 1;
-            const end = Math.min(st.page * st.limit, total);
-            info.textContent = `מציג ${start}-${end} מתוך ${formatNumber(total)}`;
+function closePresetModal() {
+    document.getElementById('presetModal').classList.remove('active');
+    document.getElementById('presetName').value = '';
+}
 
-            if (totalPages <= 1) {
-                controls.innerHTML = '';
-                return;
-            }
+function confirmSavePreset() {
+    const name = document.getElementById('presetName').value.trim();
+    if (!name) return;
+    S.presets.push({ name, filters: JSON.parse(JSON.stringify(S.listings.filters)) });
+    localStorage.setItem('yad2_presets', JSON.stringify(S.presets));
+    closePresetModal();
+    renderPresets();
+    toast(`Preset "${name}" saved`);
+}
 
-            let html = '';
-            html += `<button class="page-btn" onclick="goToPage('${table}', ${st.page - 1})" ${st.page === 1 ? 'disabled' : ''}>הקודם</button>`;
+function applyPreset(i) {
+    const p = S.presets[i];
+    if (!p) return;
+    S.listings.filters = JSON.parse(JSON.stringify(p.filters));
+    S.listings.page = 1;
+    // Restore range inputs
+    const min = S.listings.filters.price_min;
+    const max = S.listings.filters.price_max;
+    const minInput = document.querySelector('.range-filter [data-range="min"]');
+    const maxInput = document.querySelector('.range-filter [data-range="max"]');
+    if (minInput) minInput.value = min || '';
+    if (maxInput) maxInput.value = max || '';
+    buildFilters('listings');
+    filterAndRender('listings');
+    toast(`Preset "${p.name}" applied`);
+}
 
-            const pages = getPageNumbers(st.page, totalPages);
-            pages.forEach(p => {
-                if (p === '...') {
-                    html += `<span style="padding: 0.5rem;">...</span>`;
-                } else {
-                    html += `<button class="page-btn ${p === st.page ? 'active' : ''}" onclick="goToPage('${table}', ${p})">${p}</button>`;
-                }
-            });
+function deletePreset(i) {
+    S.presets.splice(i, 1);
+    localStorage.setItem('yad2_presets', JSON.stringify(S.presets));
+    renderPresets();
+}
 
-            html += `<button class="page-btn" onclick="goToPage('${table}', ${st.page + 1})" ${st.page === totalPages ? 'disabled' : ''}>הבא</button>`;
-            controls.innerHTML = html;
-        }
+// ─── UTILITIES ──────────────────────────────────────────────────────────────
 
-        function getPageNumbers(current, total) {
-            const pages = [];
-            if (total <= 7) {
-                for (let i = 1; i <= total; i++) pages.push(i);
-            } else {
-                pages.push(1);
-                if (current > 3) pages.push('...');
-                for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
-                    pages.push(i);
-                }
-                if (current < total - 2) pages.push('...');
-                pages.push(total);
-            }
-            return pages;
-        }
+function fmtN(n) { return n == null ? '-' : Number(n).toLocaleString('en-US'); }
+function fmtP(n) { return n == null ? '-' : `${Number(n).toLocaleString('en-US')}`; }
+function fmtD(s) { return s ? new Date(s).toLocaleDateString('en-GB') : '-'; }
+function fmtDT(s) { return s ? new Date(s).toLocaleString('en-GB', { day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit' }) : '-'; }
+function fmtDur(ms) {
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return `${m}m`;
+    return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
-        function goToPage(table, page) {
-            state[table].page = page;
-            if (table === 'listings') loadListings();
-            else if (table === 'priceChanges') loadPriceChanges();
-        }
+function debounce(fn, ms) {
+    let t;
+    return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
+}
 
-        // Presets
-        function loadPresets() {
-            renderPresetButtons('listings');
-            renderPresetButtons('price-changes');
-        }
-
-        function renderPresetButtons(table) {
-            const container = document.getElementById(`${table.replace('-', '')}Presets`);
-            const presets = state.presets[table] || [];
-
-            container.innerHTML = presets.map((p, i) => `
-                <button class="preset-btn" onclick="applyPreset('${table}', ${i})">
-                    ${p.name}
-                    <span class="delete" onclick="event.stopPropagation(); deletePreset('${table}', ${i})">×</span>
-                </button>
-            `).join('');
-        }
-
-        function savePreset(table) {
-            currentPresetTable = table;
-            document.getElementById('presetModal').classList.add('active');
-            document.getElementById('presetName').focus();
-        }
-
-        function closePresetModal() {
-            document.getElementById('presetModal').classList.remove('active');
-            document.getElementById('presetName').value = '';
-        }
-
-        function confirmSavePreset() {
-            const name = document.getElementById('presetName').value.trim();
-            if (!name) return;
-
-            const table = currentPresetTable;
-            const filters = table === 'listings' ? { ...state.listings.filters } : { ...state.priceChanges.filters };
-
-            if (!state.presets[table]) state.presets[table] = [];
-            state.presets[table].push({ name, filters });
-            localStorage.setItem('yad2_presets', JSON.stringify(state.presets));
-
-            closePresetModal();
-            renderPresetButtons(table);
-        }
-
-        function applyPreset(table, index) {
-            const preset = state.presets[table][index];
-            if (!preset) return;
-
-            const stateKey = table === 'price-changes' ? 'priceChanges' : table;
-            state[stateKey].filters = { ...preset.filters };
-            state[stateKey].page = 1;
-
-            // Update filter inputs
-            const tableEl = document.getElementById(`${stateKey}Table`);
-            tableEl.querySelectorAll('.column-filter').forEach(input => {
-                const col = input.dataset.column;
-                input.value = preset.filters[col] || '';
-            });
-
-            if (table === 'listings') loadListings();
-            else loadPriceChanges();
-        }
-
-        function deletePreset(table, index) {
-            state.presets[table].splice(index, 1);
-            localStorage.setItem('yad2_presets', JSON.stringify(state.presets));
-            renderPresetButtons(table);
-        }
-
-        function clearFilters(table) {
-            const stateKey = table === 'price-changes' ? 'priceChanges' : table;
-            state[stateKey].filters = {};
-            state[stateKey].page = 1;
-
-            const tableEl = document.getElementById(`${stateKey}Table`);
-            tableEl.querySelectorAll('.column-filter').forEach(input => {
-                input.value = '';
-            });
-
-            if (table === 'listings') loadListings();
-            else loadPriceChanges();
-        }
-
-        function filterByCity(city) {
-            state.listings.filters.city = city;
-            state.listings.page = 1;
-
-            document.querySelector('#listingsTable .column-filter[data-column="city"]').value = city;
-
-            document.querySelector('[data-tab="listings"]').click();
-            loadListings();
-        }
-
-        // Utilities
-        function formatNumber(num) {
-            if (num == null) return '-';
-            return num.toLocaleString('he-IL');
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return '-';
-            const d = new Date(dateStr);
-            return d.toLocaleDateString('he-IL');
-        }
-
-        function formatDateTime(dateStr) {
-            if (!dateStr) return '-';
-            const d = new Date(dateStr);
-            return d.toLocaleString('he-IL', {
-                day: '2-digit', month: '2-digit', year: '2-digit',
-                hour: '2-digit', minute: '2-digit'
-            });
-        }
-
-        function formatDuration(ms) {
-            const mins = Math.floor(ms / 60000);
-            if (mins < 60) return `${mins} דקות`;
-            const hours = Math.floor(mins / 60);
-            return `${hours} שעות, ${mins % 60} דקות`;
-        }
-
-        function debounce(fn, delay) {
-            let timeout;
-            return function(...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => fn.apply(this, args), delay);
-            };
-        }
-
-        async function refreshAll() {
-            const btn = document.querySelector('.refresh-btn');
-            btn.classList.add('loading');
-            btn.textContent = '⏳ טוען...';
-
-            await Promise.all([
-                loadStats(),
-                loadListings(),
-                loadPriceChanges(),
-                loadRuns(),
-                loadCities()
-            ]);
-
-            btn.classList.remove('loading');
-            btn.textContent = '🔄 רענן';
-        }
-    </script>
+function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 2500);
+}
+</script>
 </body>
 </html>
