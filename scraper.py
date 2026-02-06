@@ -5,10 +5,10 @@ Yad2 Full Site Scraper Service
 Scrapes ALL rental listings from yad2.co.il/realestate/rent
 Stores in PostgreSQL, runs on Railway with scheduled intervals.
 
-Based on investigation findings:
-- Radware Bot Manager protection
-- 5 requests per session limit
-- Session rotation with homepage warmup
+Features:
+- Smart scraping: stops early when no new listings found
+- State persistence: survives restarts/deploys, resumes from last page
+- Session rotation with browser impersonation
 """
 
 import json
@@ -136,21 +136,35 @@ def init_db():
             started_at TIMESTAMP DEFAULT NOW(),
             finished_at TIMESTAMP,
             total_pages INTEGER,
-            pages_scraped INTEGER,
-            pages_failed INTEGER,
-            listings_found INTEGER,
-            listings_new INTEGER,
-            listings_updated INTEGER,
+            pages_scraped INTEGER DEFAULT 0,
+            pages_failed INTEGER DEFAULT 0,
+            listings_found INTEGER DEFAULT 0,
+            listings_new INTEGER DEFAULT 0,
+            listings_updated INTEGER DEFAULT 0,
             price_changes INTEGER DEFAULT 0,
             status VARCHAR(50) DEFAULT 'running',
             error_message TEXT,
-            run_type VARCHAR(20) DEFAULT 'full'
+            run_type VARCHAR(20) DEFAULT 'full',
+            last_page_scraped INTEGER DEFAULT 0,
+            scraped_pages JSONB DEFAULT '[]'
         );
     """)
 
-    # Add run_type column if table already exists without it
+    # Add new columns if table already exists without them
+    for col, coltype, default in [
+        ("run_type", "VARCHAR(20)", "'full'"),
+        ("last_page_scraped", "INTEGER", "0"),
+        ("scraped_pages", "JSONB", "'[]'"),
+    ]:
+        cur.execute(f"ALTER TABLE scrape_runs ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT {default};")
+
+    # Scraper state table — persists run_counter across restarts
     cur.execute("""
-        ALTER TABLE scrape_runs ADD COLUMN IF NOT EXISTS run_type VARCHAR(20) DEFAULT 'full';
+        CREATE TABLE IF NOT EXISTS scraper_state (
+            key VARCHAR(50) PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
     """)
 
     conn.commit()
@@ -158,6 +172,109 @@ def init_db():
     conn.close()
     logger.info("Database initialized")
 
+
+# ─── STATE PERSISTENCE ──────────────────────────────────────────────────────────
+
+def get_state(key: str, default: str = "0") -> str:
+    """Get a persisted state value."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM scraper_state WHERE key = %s", (key,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row[0] if row else default
+
+
+def set_state(key: str, value: str):
+    """Persist a state value."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO scraper_state (key, value, updated_at)
+        VALUES (%s, %s, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    """, (key, value))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_interrupted_run() -> Optional[dict]:
+    """Check for an interrupted scrape run (status='running')."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, run_type, total_pages, pages_scraped, pages_failed,
+               listings_found, listings_new, listings_updated, price_changes,
+               last_page_scraped, scraped_pages, started_at
+        FROM scrape_runs
+        WHERE status = 'running'
+        ORDER BY id DESC
+        LIMIT 1
+    """)
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not row:
+        return None
+
+    scraped_pages = row[10] if row[10] else []
+    if isinstance(scraped_pages, str):
+        scraped_pages = json.loads(scraped_pages)
+
+    return {
+        "run_id": row[0],
+        "run_type": row[1] or "full",
+        "total_pages": row[2] or 0,
+        "pages_scraped": row[3] or 0,
+        "pages_failed": row[4] or 0,
+        "listings_found": row[5] or 0,
+        "listings_new": row[6] or 0,
+        "listings_updated": row[7] or 0,
+        "price_changes": row[8] or 0,
+        "last_page_scraped": row[9] or 0,
+        "scraped_pages": set(scraped_pages),
+        "started_at": row[11],
+    }
+
+
+def update_scrape_progress(run_id: int, pages_scraped: int, pages_failed: int,
+                           listings_found: int, listings_new: int,
+                           listings_updated: int, price_changes: int,
+                           last_page_scraped: int, scraped_pages: set,
+                           total_pages: int = None):
+    """Save current scrape progress to DB (called after each page)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    pages_list = json.dumps(sorted(scraped_pages))
+    if total_pages is not None:
+        cur.execute("""
+            UPDATE scrape_runs SET
+                total_pages = %s, pages_scraped = %s, pages_failed = %s,
+                listings_found = %s, listings_new = %s, listings_updated = %s,
+                price_changes = %s, last_page_scraped = %s, scraped_pages = %s
+            WHERE id = %s
+        """, (total_pages, pages_scraped, pages_failed, listings_found,
+              listings_new, listings_updated, price_changes,
+              last_page_scraped, pages_list, run_id))
+    else:
+        cur.execute("""
+            UPDATE scrape_runs SET
+                pages_scraped = %s, pages_failed = %s,
+                listings_found = %s, listings_new = %s, listings_updated = %s,
+                price_changes = %s, last_page_scraped = %s, scraped_pages = %s
+            WHERE id = %s
+        """, (pages_scraped, pages_failed, listings_found,
+              listings_new, listings_updated, price_changes,
+              last_page_scraped, pages_list, run_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+# ─── LISTINGS DB ────────────────────────────────────────────────────────────────
 
 def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
     """Save listings to database. Returns (new_count, updated_count, price_changes)."""
@@ -292,21 +409,17 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
     return new_count, updated_count, price_changes
 
 
-def mark_inactive_listings(seen_ids: set[str]):
-    """Mark listings not seen in this run as inactive."""
-    if not seen_ids:
-        return
-
+def mark_inactive_listings_by_run(run_started_at):
+    """Mark listings not seen during a full scrape as inactive.
+    Uses the run's start time to find which listings were updated during this run."""
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Mark as inactive if not seen and was previously active
-    placeholders = ",".join(["%s"] * len(seen_ids))
-    cur.execute(f"""
+    cur.execute("""
         UPDATE listings
         SET is_active = FALSE
-        WHERE is_active = TRUE AND id NOT IN ({placeholders})
-    """, tuple(seen_ids))
+        WHERE is_active = TRUE AND last_seen_at < %s
+    """, (run_started_at,))
 
     affected = cur.rowcount
     conn.commit()
@@ -314,7 +427,7 @@ def mark_inactive_listings(seen_ids: set[str]):
     conn.close()
 
     if affected > 0:
-        logger.info(f"Marked {affected} listings as inactive")
+        logger.info(f"Marked {affected} listings as inactive (not seen since {run_started_at})")
 
 
 def start_scrape_run(run_type: str = "full") -> int:
@@ -519,46 +632,64 @@ class Yad2Scraper:
         pag = data.get("pagination", {})
         return int(pag.get("last_page", 0))
 
-    def run_full_scrape(self) -> dict:
-        """Scrape entire site with batch session rotation."""
-        run_id = start_scrape_run(run_type="full")
-        logger.info(f"Starting FULL scrape run #{run_id}")
-
-        all_listings: dict[str, dict] = {}
-        pages_scraped = 0
-        pages_failed = 0
-        total_new = 0
-        total_updated = 0
-        total_price_changes = 0
+    def run_full_scrape(self, resume: dict = None) -> dict:
+        """Scrape entire site with batch session rotation. Supports resume."""
+        if resume:
+            run_id = resume["run_id"]
+            pages_scraped = resume["pages_scraped"]
+            pages_failed = resume["pages_failed"]
+            total_new = resume["listings_new"]
+            total_updated = resume["listings_updated"]
+            total_price_changes = resume["price_changes"]
+            scraped_pages = resume["scraped_pages"]
+            total_pages = resume["total_pages"]
+            run_started_at = resume["started_at"]
+            logger.info(f"RESUMING full scrape run #{run_id} — {pages_scraped}/{total_pages} pages done, "
+                       f"resuming from {len(scraped_pages)} completed pages")
+        else:
+            run_id = start_scrape_run(run_type="full")
+            pages_scraped = 0
+            pages_failed = 0
+            total_new = 0
+            total_updated = 0
+            total_price_changes = 0
+            scraped_pages = set()
+            total_pages = 0
+            run_started_at = datetime.now(timezone.utc)
+            logger.info(f"Starting FULL scrape run #{run_id}")
 
         try:
-            # Get first page to discover total
+            # Need a session
             if not self._new_session():
                 raise Exception("Cannot create initial session")
-
             time.sleep(random.uniform(2, 4))
-            data = self._fetch_page(1)
 
-            if not data:
-                raise Exception("Cannot fetch page 1")
+            # If not resuming or total_pages unknown, fetch page 1 to discover total
+            if total_pages == 0:
+                data = self._fetch_page(1)
+                if not data:
+                    raise Exception("Cannot fetch page 1")
 
-            listings = self._extract_listings(data)
-            for l in listings:
-                all_listings[l["id"]] = l
-            pages_scraped += 1
+                listings = self._extract_listings(data)
+                pages_scraped += 1
+                scraped_pages.add(1)
 
-            total_pages = self._get_total_pages(data)
-            logger.info(f"Page 1: {len(listings)} listings, total pages: {total_pages}")
+                total_pages = self._get_total_pages(data)
+                logger.info(f"Page 1: {len(listings)} listings, total pages: {total_pages}")
 
-            # Save page 1 immediately
-            new, updated, price_changes = save_listings(listings, run_id)
-            total_new += new
-            total_updated += updated
-            total_price_changes += price_changes
+                new, updated, price_changes = save_listings(listings, run_id)
+                total_new += new
+                total_updated += updated
+                total_price_changes += price_changes
 
-            # Build page queue
-            remaining = list(range(2, total_pages + 1))
+                update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                       pages_scraped * 36, total_new, total_updated,
+                                       total_price_changes, 1, scraped_pages, total_pages)
+
+            # Build remaining pages (exclude already scraped)
+            remaining = [p for p in range(1, total_pages + 1) if p not in scraped_pages]
             random.shuffle(remaining)
+            logger.info(f"Pages remaining: {len(remaining)}/{total_pages}")
             attempt = 0
 
             while remaining and attempt < MAX_RETRIES:
@@ -567,13 +698,11 @@ class Yad2Scraper:
                     logger.info(f"Retry round {attempt}, {len(remaining)} pages remaining")
                     random.shuffle(remaining)
 
-                # Split into batches
                 batches = [remaining[i:i+PAGES_PER_SESSION]
                           for i in range(0, len(remaining), PAGES_PER_SESSION)]
                 next_remaining = []
 
                 for batch_idx, batch in enumerate(batches):
-                    # New session for each batch
                     if batch_idx > 0 or attempt > 1:
                         cooldown = random.uniform(*DELAY_BETWEEN_BATCHES)
                         logger.info(f"Cooldown {cooldown:.0f}s before batch {batch_idx+1}/{len(batches)}")
@@ -604,32 +733,34 @@ class Yad2Scraper:
                             continue
 
                         page_listings = self._extract_listings(page_data)
-                        for l in page_listings:
-                            all_listings[l["id"]] = l
                         pages_scraped += 1
+                        scraped_pages.add(page)
 
-                        # Save incrementally
                         new, updated, price_changes = save_listings(page_listings, run_id)
                         total_new += new
                         total_updated += updated
                         total_price_changes += price_changes
 
+                        # Persist progress after each page
+                        update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                               pages_scraped * 36, total_new, total_updated,
+                                               total_price_changes, page, scraped_pages)
+
                         logger.info(f"Page {page}: {len(page_listings)} listings "
-                                   f"(total: {len(all_listings)}, new: {new}, updated: {updated}, price_changes: {price_changes})")
+                                   f"(scraped: {pages_scraped}/{total_pages}, new: {new}, updated: {updated}, price_changes: {price_changes})")
 
                 remaining = next_remaining
 
-            # Mark listings not seen as inactive
-            mark_inactive_listings(set(all_listings.keys()))
+            # Mark listings not seen during this full scrape as inactive
+            mark_inactive_listings_by_run(run_started_at)
 
-            # Final stats
             final_failed = len(remaining)
             finish_scrape_run(
                 run_id, total_pages, pages_scraped, final_failed,
-                len(all_listings), total_new, total_updated, total_price_changes, "completed"
+                pages_scraped * 36, total_new, total_updated, total_price_changes, "completed"
             )
 
-            logger.info(f"Scrape #{run_id} completed: {len(all_listings)} listings, "
+            logger.info(f"Full scrape #{run_id} completed: "
                        f"{pages_scraped}/{total_pages} pages, {total_new} new, {total_updated} updated, {total_price_changes} price changes")
 
             return {
@@ -637,72 +768,98 @@ class Yad2Scraper:
                 "total_pages": total_pages,
                 "pages_scraped": pages_scraped,
                 "pages_failed": final_failed,
-                "listings_found": len(all_listings),
                 "listings_new": total_new,
                 "listings_updated": total_updated,
                 "price_changes": total_price_changes,
-                "status": "completed"
+                "status": "completed",
+                "run_type": "full"
             }
 
         except Exception as e:
-            logger.error(f"Scrape failed: {e}")
-            finish_scrape_run(run_id, 0, pages_scraped, pages_failed,
-                            len(all_listings), total_new, total_updated,
+            logger.error(f"Full scrape failed: {e}")
+            finish_scrape_run(run_id, total_pages, pages_scraped, pages_failed,
+                            pages_scraped * 36, total_new, total_updated,
                             total_price_changes, "failed", str(e))
             raise
 
-    def run_smart_scrape(self) -> dict:
-        """Smart scrape: scrape pages sequentially, stop when no new listings found."""
-        run_id = start_scrape_run(run_type="smart")
-        logger.info(f"Starting SMART scrape run #{run_id} (stop after {SMART_STOP_THRESHOLD} pages with no new listings)")
+    def run_smart_scrape(self, resume: dict = None) -> dict:
+        """Smart scrape: scrape pages sequentially, stop when no new listings found. Supports resume."""
+        if resume:
+            run_id = resume["run_id"]
+            pages_scraped = resume["pages_scraped"]
+            pages_failed = resume["pages_failed"]
+            total_new = resume["listings_new"]
+            total_updated = resume["listings_updated"]
+            total_price_changes = resume["price_changes"]
+            total_listings_found = resume["listings_found"]
+            start_page = resume["last_page_scraped"] + 1
+            total_pages = resume["total_pages"]
+            consecutive_no_new = 0  # Reset on resume — safe, just means we re-check
+            logger.info(f"RESUMING smart scrape run #{run_id} — continuing from page {start_page}")
+        else:
+            run_id = start_scrape_run(run_type="smart")
+            pages_scraped = 0
+            pages_failed = 0
+            total_new = 0
+            total_updated = 0
+            total_price_changes = 0
+            total_listings_found = 0
+            consecutive_no_new = 0
+            start_page = 1
+            total_pages = 0
+            logger.info(f"Starting SMART scrape run #{run_id} (stop after {SMART_STOP_THRESHOLD} pages with no new listings)")
 
-        pages_scraped = 0
-        pages_failed = 0
-        total_new = 0
-        total_updated = 0
-        total_price_changes = 0
-        total_listings_found = 0
-        consecutive_no_new = 0
-        total_pages = 0
+        scraped_pages = set()
 
         try:
-            # Get first page to discover total pages
             if not self._new_session():
                 raise Exception("Cannot create initial session")
-
             time.sleep(random.uniform(2, 4))
-            data = self._fetch_page(1)
 
-            if not data:
-                raise Exception("Cannot fetch page 1")
+            # If starting fresh, fetch page 1 to discover total_pages
+            if start_page == 1:
+                data = self._fetch_page(1)
+                if not data:
+                    raise Exception("Cannot fetch page 1")
 
-            listings = self._extract_listings(data)
-            pages_scraped += 1
-            total_listings_found += len(listings)
+                listings = self._extract_listings(data)
+                pages_scraped += 1
+                total_listings_found += len(listings)
+                scraped_pages.add(1)
 
-            total_pages = self._get_total_pages(data)
-            logger.info(f"Smart scrape page 1: {len(listings)} listings, total pages available: {total_pages}")
+                total_pages = self._get_total_pages(data)
+                logger.info(f"Smart scrape page 1: {len(listings)} listings, total pages available: {total_pages}")
 
-            # Save page 1
-            new, updated, price_changes = save_listings(listings, run_id)
-            total_new += new
-            total_updated += updated
-            total_price_changes += price_changes
+                new, updated, price_changes = save_listings(listings, run_id)
+                total_new += new
+                total_updated += updated
+                total_price_changes += price_changes
 
-            if new == 0:
-                consecutive_no_new += 1
-            else:
-                consecutive_no_new = 0
+                if new == 0:
+                    consecutive_no_new += 1
+                else:
+                    consecutive_no_new = 0
 
-            # Scrape remaining pages sequentially
-            page = 2
+                update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                       total_listings_found, total_new, total_updated,
+                                       total_price_changes, 1, scraped_pages, total_pages)
+                start_page = 2
+
+            # If resuming and we don't know total_pages, fetch page 1 just for that
+            if total_pages == 0:
+                data = self._fetch_page(1)
+                if data:
+                    total_pages = self._get_total_pages(data)
+                else:
+                    raise Exception("Cannot determine total pages")
+
+            page = start_page
             while page <= total_pages:
-                # Check stop condition
                 if consecutive_no_new >= SMART_STOP_THRESHOLD:
                     logger.info(f"Smart scrape stopping: {SMART_STOP_THRESHOLD} consecutive pages with no new listings (at page {page})")
                     break
 
-                # Rotate session every PAGES_PER_SESSION requests
+                # Rotate session
                 if self.requests_this_session >= PAGES_PER_SESSION:
                     cooldown = random.uniform(*DELAY_BETWEEN_BATCHES)
                     logger.info(f"Session rotation cooldown {cooldown:.0f}s")
@@ -724,7 +881,6 @@ class Yad2Scraper:
 
                 if page_data is None:
                     pages_failed += 1
-                    # On block, rotate session and retry once
                     logger.warning(f"Smart scrape page {page} failed, rotating session")
                     time.sleep(random.uniform(*DELAY_BETWEEN_BATCHES))
                     if self._new_session():
@@ -738,6 +894,7 @@ class Yad2Scraper:
                 page_listings = self._extract_listings(page_data)
                 pages_scraped += 1
                 total_listings_found += len(page_listings)
+                scraped_pages.add(page)
 
                 new, updated, price_changes = save_listings(page_listings, run_id)
                 total_new += new
@@ -749,14 +906,18 @@ class Yad2Scraper:
                 else:
                     consecutive_no_new = 0
 
+                # Persist progress after each page
+                update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                       total_listings_found, total_new, total_updated,
+                                       total_price_changes, page, scraped_pages)
+
                 logger.info(f"Smart page {page}: {len(page_listings)} listings "
                            f"(new: {new}, updated: {updated}, consecutive_no_new: {consecutive_no_new}/{SMART_STOP_THRESHOLD})")
 
                 page += 1
 
-            # Do NOT mark inactive listings on smart scrape (we didn't see all pages)
+            # Do NOT mark inactive listings on smart scrape
 
-            pages_actually_available = page - 1  # last page we considered
             finish_scrape_run(
                 run_id, total_pages, pages_scraped, pages_failed,
                 total_listings_found, total_new, total_updated,
@@ -804,7 +965,27 @@ def main():
 
     scraper = Yad2Scraper()
     force_full = os.environ.get("FORCE_FULL_SCRAPE", "").lower() in ("1", "true", "yes")
-    run_counter = 0
+
+    # Restore run_counter from DB
+    run_counter = int(get_state("run_counter", "0"))
+    logger.info(f"Restored run_counter={run_counter} from DB")
+
+    # Check for interrupted run
+    interrupted = get_interrupted_run()
+    if interrupted:
+        logger.info(f"Found interrupted {interrupted['run_type']} scrape run #{interrupted['run_id']} "
+                    f"({interrupted['pages_scraped']}/{interrupted['total_pages']} pages done)")
+        try:
+            if interrupted["run_type"] == "smart":
+                result = scraper.run_smart_scrape(resume=interrupted)
+            else:
+                result = scraper.run_full_scrape(resume=interrupted)
+            logger.info(f"Resumed scrape completed: {result}")
+        except Exception as e:
+            logger.error(f"Resume scrape error: {e}")
+
+        run_counter += 1
+        set_state("run_counter", str(run_counter))
 
     while True:
         try:
@@ -816,7 +997,7 @@ def main():
                 reason = "FORCE_FULL_SCRAPE env" if force_full else ("first run ever" if is_first_run else f"every {FULL_SCRAPE_EVERY} runs")
                 logger.info(f"Starting FULL scrape (reason: {reason})...")
                 result = scraper.run_full_scrape()
-                force_full = False  # Only force once
+                force_full = False
             else:
                 logger.info(f"Starting SMART scrape (run {run_counter}, next full at {((run_counter // FULL_SCRAPE_EVERY) + 1) * FULL_SCRAPE_EVERY})...")
                 result = scraper.run_smart_scrape()
@@ -826,6 +1007,7 @@ def main():
             logger.error(f"Scrape error: {e}")
 
         run_counter += 1
+        set_state("run_counter", str(run_counter))
         logger.info(f"Sleeping {SCRAPE_INTERVAL_SECONDS}s until next scrape...")
         time.sleep(SCRAPE_INTERVAL_SECONDS)
 
