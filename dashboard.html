@@ -991,9 +991,13 @@ let refreshTimer = null;
 // ─── INIT ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-    initTabs();
-    initRangeFilters();
-    renderPresets();
+    try {
+        initTabs();
+        initRangeFilters();
+        renderPresets();
+    } catch (e) {
+        console.error('Init error:', e);
+    }
     loadAll();
     refreshTimer = setInterval(loadAll, AUTO_REFRESH_MS);
     document.addEventListener('click', e => {
@@ -1027,16 +1031,25 @@ function initRangeFilters() {
 // ─── DATA LOADING ───────────────────────────────────────────────────────────
 
 async function api(endpoint, params = {}) {
-    const url = new URL(`${API_BASE}${endpoint}`);
-    Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') url.searchParams.set(k, v); });
+    const url = `${API_BASE}${endpoint}?` + Object.entries(params)
+        .filter(([k, v]) => v != null && v !== '')
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
     const r = await fetch(url);
-    if (!r.ok) throw new Error(`${r.status}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
     return r.json();
 }
 
 async function loadAll() {
-    await Promise.all([loadStats(), loadListings(), loadPriceChanges(), loadRuns()]);
-    document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    try {
+        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns()]);
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
+        document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    } catch (e) {
+        console.error('loadAll error:', e);
+        document.getElementById('lastUpdate').textContent = `Error: ${e.message}`;
+    }
 }
 
 async function loadStats() {
@@ -1060,7 +1073,10 @@ async function loadStats() {
 
         renderTopCities(s.top_cities || []);
         renderRoomsChart(s.rooms_distribution || []);
-    } catch (e) { console.error('Stats error:', e); }
+    } catch (e) {
+        console.error('Stats error:', e);
+        document.getElementById('kpiActive').textContent = 'Error';
+    }
 }
 
 async function loadListings() {
