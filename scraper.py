@@ -201,8 +201,26 @@ def set_state(key: str, value: str):
     conn.close()
 
 
+def cleanup_stale_runs():
+    """Mark all 'running' runs with 0 pages scraped as 'abandoned'."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE scrape_runs
+        SET status = 'abandoned', finished_at = NOW(),
+            error_message = 'Abandoned: no pages scraped before restart'
+        WHERE status = 'running' AND (pages_scraped IS NULL OR pages_scraped = 0)
+    """)
+    abandoned = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    if abandoned > 0:
+        logger.info(f"Cleaned up {abandoned} stale runs with 0 pages scraped")
+
+
 def get_interrupted_run() -> Optional[dict]:
-    """Check for an interrupted scrape run (status='running')."""
+    """Check for an interrupted scrape run (status='running') that has actual progress."""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -210,7 +228,7 @@ def get_interrupted_run() -> Optional[dict]:
                listings_found, listings_new, listings_updated, price_changes,
                last_page_scraped, scraped_pages, started_at
         FROM scrape_runs
-        WHERE status = 'running'
+        WHERE status = 'running' AND pages_scraped > 0
         ORDER BY id DESC
         LIMIT 1
     """)
@@ -490,12 +508,20 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
 class Yad2Scraper:
     def __init__(self):
         self.session = None
+        self.current_platform = "Windows"
         self.requests_this_session = 0
 
     def _new_session(self) -> bool:
         """Create fresh session with browser impersonation."""
+        if self.session:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+
         profile, platform = random.choice(BROWSER_PROFILES)
         self.session = curl_requests.Session(impersonate=profile)
+        self.current_platform = platform
         self.requests_this_session = 0
 
         headers = self._headers(is_api=False, platform=platform)
@@ -554,7 +580,7 @@ class Yad2Scraper:
         """Fetch a single page via API."""
         url = "https://www.yad2.co.il/api/pre-load/getFeedIndex/realestate/rent"
         params = {"page": str(page)} if page > 1 else {}
-        headers = self._headers(is_api=True)
+        headers = self._headers(is_api=True, platform=self.current_platform)
 
         try:
             resp = self.session.get(url, params=params, headers=headers, timeout=20)
@@ -752,10 +778,16 @@ class Yad2Scraper:
 
                 remaining = next_remaining
 
-            # Mark listings not seen during this full scrape as inactive
-            mark_inactive_listings_by_run(run_started_at)
-
             final_failed = len(remaining)
+
+            # Only mark listings inactive if we scraped most pages successfully
+            # (>= 80% of total pages), otherwise we'd incorrectly deactivate valid listings
+            success_rate = pages_scraped / total_pages if total_pages > 0 else 0
+            if success_rate >= 0.8:
+                mark_inactive_listings_by_run(run_started_at)
+            else:
+                logger.warning(f"Skipping mark_inactive: only scraped {pages_scraped}/{total_pages} "
+                              f"pages ({success_rate:.0%}), need >= 80%")
             finish_scrape_run(
                 run_id, total_pages, pages_scraped, final_failed,
                 pages_scraped * 36, total_new, total_updated, total_price_changes, "completed"
@@ -796,6 +828,7 @@ class Yad2Scraper:
             start_page = resume["last_page_scraped"] + 1
             total_pages = resume["total_pages"]
             consecutive_no_new = 0  # Reset on resume — safe, just means we re-check
+            scraped_pages = resume["scraped_pages"]
             logger.info(f"RESUMING smart scrape run #{run_id} — continuing from page {start_page}")
         else:
             run_id = start_scrape_run(run_type="smart")
@@ -808,9 +841,8 @@ class Yad2Scraper:
             consecutive_no_new = 0
             start_page = 1
             total_pages = 0
+            scraped_pages = set()
             logger.info(f"Starting SMART scrape run #{run_id} (stop after {SMART_STOP_THRESHOLD} pages with no new listings)")
-
-        scraped_pages = set()
 
         try:
             if not self._new_session():
@@ -971,7 +1003,23 @@ def main():
     run_counter = int(get_state("run_counter", "0"))
     logger.info(f"Restored run_counter={run_counter} from DB")
 
-    # Check for interrupted run
+    # Clean up stale runs with no progress, then check for resumable ones
+    cleanup_stale_runs()
+
+    # One-time fix: re-activate listings wrongly marked inactive by incomplete full scrape
+    # Run #14 only scraped 163/833 pages but still called mark_inactive, deactivating ~17k listings
+    if get_state("fix_reactivate_v1", "0") == "0":
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE listings SET is_active = TRUE WHERE is_active = FALSE")
+        reactivated = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        set_state("fix_reactivate_v1", "1")
+        if reactivated > 0:
+            logger.info(f"One-time fix: re-activated {reactivated} listings wrongly marked inactive")
+
     interrupted = get_interrupted_run()
     if interrupted:
         logger.info(f"Found interrupted {interrupted['run_type']} scrape run #{interrupted['run_id']} "

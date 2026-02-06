@@ -14,7 +14,7 @@ from psycopg2.extras import RealDictCursor
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder='.')
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 
@@ -190,7 +190,7 @@ def list_listings():
     is_merchant = request.args.get("is_merchant")
     active_only = request.args.get("active_only", "true").lower() == "true"
     limit = min(request.args.get("limit", 100, type=int), 1000)
-    offset = request.args.get("offset", 0, type=int)
+    offset = max(request.args.get("offset", 0, type=int), 0)
     sort_by = request.args.get("sort_by", "last_seen_at")
     sort_order = request.args.get("sort_order", "desc")
 
@@ -218,11 +218,11 @@ def list_listings():
         params.append(max_price)
 
     if min_rooms:
-        conditions.append("rooms::int >= %s")
+        conditions.append("CASE WHEN rooms ~ '^[0-9]+$' THEN rooms::int ELSE 0 END >= %s")
         params.append(min_rooms)
 
     if max_rooms:
-        conditions.append("rooms::int <= %s")
+        conditions.append("CASE WHEN rooms ~ '^[0-9]+$' THEN rooms::int ELSE 0 END <= %s")
         params.append(max_rooms)
 
     if is_merchant is not None:
@@ -238,30 +238,31 @@ def list_listings():
     sort_order = "DESC" if sort_order.lower() == "desc" else "ASC"
 
     conn = get_db()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    # Get total count
-    cur.execute(f"SELECT COUNT(*) FROM listings WHERE {where_clause}", params)
-    total = cur.fetchone()["count"]
+        # Get total count
+        cur.execute(f"SELECT COUNT(*) FROM listings WHERE {where_clause}", params)
+        total = cur.fetchone()["count"]
 
-    # Get listings
-    cur.execute(f"""
-        SELECT id, ad_number, link_token, street, property_type,
-               description_line, city, neighborhood, price, price_numeric,
-               rooms, floor, size_sqm, date_added, updated_at,
-               contact_name, is_merchant, merchant_name,
-               latitude, longitude, image_url, images_count,
-               amenities, first_seen_at, last_seen_at, is_active
-        FROM listings
-        WHERE {where_clause}
-        ORDER BY {sort_by} {sort_order}
-        LIMIT %s OFFSET %s
-    """, params + [limit, offset])
+        # Get listings
+        cur.execute(f"""
+            SELECT id, ad_number, link_token, street, property_type,
+                   description_line, city, neighborhood, price, price_numeric,
+                   rooms, floor, size_sqm, date_added, updated_at,
+                   contact_name, is_merchant, merchant_name,
+                   latitude, longitude, image_url, images_count,
+                   amenities, first_seen_at, last_seen_at, is_active
+            FROM listings
+            WHERE {where_clause}
+            ORDER BY {sort_by} {sort_order}
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
 
-    listings = [dict(r) for r in cur.fetchall()]
-
-    cur.close()
-    conn.close()
+        listings = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify({
         "total": total,
@@ -275,30 +276,31 @@ def list_listings():
 @app.route("/listings/<listing_id>")
 def get_listing(listing_id):
     conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("SELECT * FROM listings WHERE id = %s", (listing_id,))
-    listing = cur.fetchone()
-
-    if not listing:
-        cur.close()
-        conn.close()
-        return jsonify({"error": "Listing not found"}), 404
-
-    result = dict(listing)
-
-    # Get price history count
     try:
-        cur.execute(
-            "SELECT COUNT(*) as count FROM price_history WHERE listing_id = %s",
-            (listing_id,)
-        )
-        result["price_history_count"] = cur.fetchone()["count"]
-    except Exception:
-        result["price_history_count"] = 0
+        cur = conn.cursor()
 
-    cur.close()
-    conn.close()
+        cur.execute("SELECT * FROM listings WHERE id = %s", (listing_id,))
+        listing = cur.fetchone()
+
+        if not listing:
+            cur.close()
+            return jsonify({"error": "Listing not found"}), 404
+
+        result = dict(listing)
+
+        # Get price history count
+        try:
+            cur.execute(
+                "SELECT COUNT(*) as count FROM price_history WHERE listing_id = %s",
+                (listing_id,)
+            )
+            result["price_history_count"] = cur.fetchone()["count"]
+        except Exception:
+            result["price_history_count"] = 0
+
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify(result)
 
@@ -307,38 +309,37 @@ def get_listing(listing_id):
 def get_listing_price_history(listing_id):
     """Get price history for a specific listing."""
     conn = get_db()
-    cur = conn.cursor()
-
-    # Check if listing exists
-    cur.execute("SELECT id, city, street, neighborhood FROM listings WHERE id = %s", (listing_id,))
-    listing = cur.fetchone()
-
-    if not listing:
-        cur.close()
-        conn.close()
-        return jsonify({"error": "Listing not found"}), 404
-
-    # Get price history
     try:
-        cur.execute("""
-            SELECT price, price_numeric, recorded_at, scrape_run_id
-            FROM price_history
-            WHERE listing_id = %s
-            ORDER BY recorded_at ASC
-        """, (listing_id,))
-        history = [dict(r) for r in cur.fetchall()]
-    except Exception:
-        history = []
+        cur = conn.cursor()
 
-    cur.close()
-    conn.close()
+        cur.execute("SELECT id, city, street, neighborhood FROM listings WHERE id = %s", (listing_id,))
+        listing = cur.fetchone()
+
+        if not listing:
+            cur.close()
+            return jsonify({"error": "Listing not found"}), 404
+
+        try:
+            cur.execute("""
+                SELECT price, price_numeric, recorded_at, scrape_run_id
+                FROM price_history
+                WHERE listing_id = %s
+                ORDER BY recorded_at ASC
+            """, (listing_id,))
+            history = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            history = []
+
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify({
         "listing_id": listing_id,
         "city": listing["city"],
         "street": listing["street"],
         "neighborhood": listing["neighborhood"],
-        "price_changes": len(history) - 1 if history else 0,  # First entry is initial price
+        "price_changes": len(history) - 1 if history else 0,
         "history": history
     })
 
@@ -351,10 +352,12 @@ def list_price_changes():
     city = request.args.get("city")
     days = request.args.get("days", 7, type=int)  # Default last 7 days
 
-    conn = get_db()
-    cur = conn.cursor()
+    days = max(1, min(days, 365))
 
+    conn = get_db()
     try:
+        cur = conn.cursor()
+
         # Build query with optional city filter
         conditions = [
             "ph.recorded_at > NOW() - make_interval(days => %s)"
@@ -367,43 +370,52 @@ def list_price_changes():
 
         where_clause = " AND ".join(conditions)
 
-        # Get price changes with listing info
+        # Get price changes using CTE to properly filter and paginate
         cur.execute(f"""
-            SELECT
-                ph.listing_id,
-                l.city,
-                l.street,
-                l.neighborhood,
-                l.rooms,
-                ph.price,
-                ph.price_numeric,
-                ph.recorded_at,
-                LAG(ph.price_numeric) OVER (
-                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
-                ) as previous_price
-            FROM price_history ph
-            JOIN listings l ON l.id = ph.listing_id
-            WHERE {where_clause}
-            ORDER BY ph.recorded_at DESC
+            WITH changes AS (
+                SELECT
+                    ph.listing_id,
+                    l.city,
+                    l.street,
+                    l.neighborhood,
+                    l.rooms,
+                    ph.price,
+                    ph.price_numeric,
+                    ph.recorded_at,
+                    LAG(ph.price_numeric) OVER (
+                        PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                    ) as previous_price
+                FROM price_history ph
+                JOIN listings l ON l.id = ph.listing_id
+                WHERE {where_clause}
+            )
+            SELECT * FROM changes
+            WHERE previous_price IS NOT NULL
+            ORDER BY recorded_at DESC
             LIMIT %s OFFSET %s
         """, params + [limit, offset])
 
         changes = []
         for row in cur.fetchall():
             r = dict(row)
-            if r["previous_price"] is not None:  # Skip initial prices
-                r["price_diff"] = r["price_numeric"] - r["previous_price"]
-                r["price_diff_percent"] = round(
-                    (r["price_diff"] / r["previous_price"]) * 100, 1
-                ) if r["previous_price"] else 0
-                changes.append(r)
+            r["price_diff"] = r["price_numeric"] - r["previous_price"]
+            r["price_diff_percent"] = round(
+                (r["price_diff"] / r["previous_price"]) * 100, 1
+            ) if r["previous_price"] else 0
+            changes.append(r)
 
-        # Get total count of changes
+        # Get total count of actual changes (not initial prices)
         cur.execute(f"""
-            SELECT COUNT(*) as count
-            FROM price_history ph
-            JOIN listings l ON l.id = ph.listing_id
-            WHERE {where_clause}
+            WITH changes AS (
+                SELECT ph.listing_id,
+                    LAG(ph.price_numeric) OVER (
+                        PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                    ) as previous_price
+                FROM price_history ph
+                JOIN listings l ON l.id = ph.listing_id
+                WHERE {where_clause}
+            )
+            SELECT COUNT(*) as count FROM changes WHERE previous_price IS NOT NULL
         """, params)
         total = cur.fetchone()["count"]
 
@@ -418,13 +430,13 @@ def list_price_changes():
         """, params)
         summary = dict(cur.fetchone())
 
+        cur.close()
     except Exception:
         changes = []
         total = 0
         summary = {"listings_with_changes": 0, "total_price_records": 0}
-
-    cur.close()
-    conn.close()
+    finally:
+        conn.close()
 
     return jsonify({
         "total": total,
@@ -442,18 +454,17 @@ def list_runs():
     limit = min(request.args.get("limit", 20, type=int), 100)
 
     conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT * FROM scrape_runs
-        ORDER BY started_at DESC
-        LIMIT %s
-    """, (limit,))
-
-    runs = [dict(r) for r in cur.fetchall()]
-
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM scrape_runs
+            ORDER BY started_at DESC
+            LIMIT %s
+        """, (limit,))
+        runs = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify({"runs": runs})
 
@@ -461,20 +472,19 @@ def list_runs():
 @app.route("/cities")
 def list_cities():
     conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT city, COUNT(*) as listings_count
-        FROM listings
-        WHERE is_active = TRUE AND city IS NOT NULL
-        GROUP BY city
-        ORDER BY listings_count DESC
-    """)
-
-    cities = [dict(r) for r in cur.fetchall()]
-
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT city, COUNT(*) as listings_count
+            FROM listings
+            WHERE is_active = TRUE AND city IS NOT NULL
+            GROUP BY city
+            ORDER BY listings_count DESC
+        """)
+        cities = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify({"cities": cities})
 
@@ -484,30 +494,29 @@ def list_neighborhoods():
     city = request.args.get("city")
 
     conn = get_db()
-    cur = conn.cursor()
-
-    if city:
-        cur.execute("""
-            SELECT neighborhood, COUNT(*) as listings_count
-            FROM listings
-            WHERE is_active = TRUE AND neighborhood IS NOT NULL AND city ILIKE %s
-            GROUP BY neighborhood
-            ORDER BY listings_count DESC
-        """, (f"%{city}%",))
-    else:
-        cur.execute("""
-            SELECT neighborhood, city, COUNT(*) as listings_count
-            FROM listings
-            WHERE is_active = TRUE AND neighborhood IS NOT NULL
-            GROUP BY neighborhood, city
-            ORDER BY listings_count DESC
-            LIMIT 100
-        """)
-
-    neighborhoods = [dict(r) for r in cur.fetchall()]
-
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        if city:
+            cur.execute("""
+                SELECT neighborhood, COUNT(*) as listings_count
+                FROM listings
+                WHERE is_active = TRUE AND neighborhood IS NOT NULL AND city ILIKE %s
+                GROUP BY neighborhood
+                ORDER BY listings_count DESC
+            """, (f"%{city}%",))
+        else:
+            cur.execute("""
+                SELECT neighborhood, city, COUNT(*) as listings_count
+                FROM listings
+                WHERE is_active = TRUE AND neighborhood IS NOT NULL
+                GROUP BY neighborhood, city
+                ORDER BY listings_count DESC
+                LIMIT 100
+            """)
+        neighborhoods = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        conn.close()
 
     return jsonify({"neighborhoods": neighborhoods})
 
