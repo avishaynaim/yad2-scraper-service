@@ -1536,6 +1536,11 @@ document.addEventListener('DOMContentLoaded', () => {
             tabs[num - 1].click();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            document.getElementById('detailModal').classList.remove('active');
+            document.getElementById('presetModal').classList.remove('active');
+        }
         // 'r' to refresh
         if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
             loadAll();
@@ -2667,8 +2672,10 @@ function showListingDetail(idx) {
         ${amenityTags ? `<div class="amenity-tags" style="margin-top:0.75rem;">${amenityTags}</div>` : ''}
         ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${l.description_line}</div>` : ''}
         <div id="priceHistoryChart" style="margin-top:1rem;"></div>
+        ${l.latitude && l.longitude ? `<div style="margin-top:0.75rem;font-size:0.6875rem;color:var(--gray-400);">Coordinates: ${l.latitude}, ${l.longitude}</div>` : ''}
         <div style="margin-top:1rem;display:flex;gap:0.5rem;">
             <a href="${link}" target="_blank" class="btn btn-primary" style="text-decoration:none;">Open on Yad2</a>
+            <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${link}');toast('Link copied!')">Copy Link</button>
         </div>
     `;
     document.getElementById('detailModal').classList.add('active');
@@ -2690,38 +2697,37 @@ async function loadListingPriceHistory(listingId) {
         }
 
         // Render price history timeline
-        const prices = history.map(h => h.price_numeric).filter(Boolean);
+        const prices = history.map(item => item.price_numeric).filter(Boolean);
         const minP = Math.min(...prices);
         const maxP = Math.max(...prices);
-        const range = maxP - minP || 1;
-        const h = 80;
+        const pRange = maxP - minP || 1;
+        const chartH = 80;
 
-        const points = history.filter(h => h.price_numeric).map((h, i, arr) => {
-            const x = (i / (arr.length - 1 || 1)) * 100;
-            const y = h - ((h.price_numeric - minP) / range) * (h - 15) - 10;
-            return { x, y, price: h.price_numeric, date: h.recorded_at };
-        });
+        function priceToY(price) { return chartH - ((price - minP) / pRange) * 55 - 10; }
+
+        const points = history.filter(item => item.price_numeric).map((item, i, arr) => ({
+            x: (i / (arr.length - 1 || 1)) * 100,
+            y: priceToY(item.price_numeric),
+            price: item.price_numeric,
+            date: item.recorded_at
+        }));
 
         // Use step-style line for price changes
         let pathD = '';
         points.forEach((p, i) => {
-            const yVal = 80 - ((p.price - minP) / range) * 55 - 10;
             if (i === 0) {
-                pathD += `M ${p.x},${yVal}`;
+                pathD += `M ${p.x},${p.y}`;
             } else {
-                pathD += ` L ${points[i-1].x + (p.x - points[i-1].x) * 0.01},${80 - ((points[i-1].price - minP) / range) * 55 - 10}`;
-                pathD += ` L ${p.x},${yVal}`;
+                pathD += ` L ${points[i-1].x + (p.x - points[i-1].x) * 0.01},${points[i-1].y}`;
+                pathD += ` L ${p.x},${p.y}`;
             }
         });
 
         el.innerHTML = `
             <div style="font-size:0.6875rem;font-weight:600;color:var(--gray-600);margin-bottom:0.375rem;">Price History (${d.price_changes} change${d.price_changes !== 1 ? 's' : ''})</div>
-            <svg viewBox="0 0 100 ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;background:var(--gray-50);border-radius:4px;">
+            <svg viewBox="0 0 100 ${chartH}" preserveAspectRatio="none" style="width:100%;height:${chartH}px;background:var(--gray-50);border-radius:4px;">
                 <path d="${pathD}" fill="none" stroke="var(--primary)" stroke-width="0.5" vector-effect="non-scaling-stroke"/>
-                ${points.map(p => {
-                    const yVal = 80 - ((p.price - minP) / range) * 55 - 10;
-                    return `<circle cx="${p.x}" cy="${yVal}" r="1.5" fill="var(--primary)" vector-effect="non-scaling-stroke"/>`;
-                }).join('')}
+                ${points.map(p => `<circle cx="${p.x}" cy="${p.y}" r="1.5" fill="var(--primary)" vector-effect="non-scaling-stroke"/>`).join('')}
             </svg>
             <div style="display:flex;flex-direction:column;gap:0.25rem;margin-top:0.5rem;max-height:120px;overflow-y:auto;">
                 ${history.map((h, i) => {
