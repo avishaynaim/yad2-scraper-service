@@ -864,6 +864,7 @@
         <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
         <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
         <button class="tab" data-tab="deals">Deals<span class="tab-badge" id="dealsBadge">0</span></button>
+        <button class="tab" data-tab="map">Map<span class="tab-badge" id="mapBadge">0</span></button>
         <button class="tab" data-tab="alerts">Alerts<span class="tab-badge" id="alertsBadge">0</span></button>
         <button class="tab" data-tab="favorites">Favorites<span class="tab-badge" id="favoritesBadge">0</span></button>
         <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
@@ -1265,6 +1266,25 @@
         </div>
     </div>
 
+    <!-- Map Panel -->
+    <div class="panel" id="map-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Price Map</h2>
+                <div class="filter-toolbar">
+                    <select id="mapCityFilter" onchange="loadMapData()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <option value="">All Cities</option>
+                    </select>
+                    <span style="font-size:0.625rem;color:var(--gray-400);">Dot size = price relative to area. Color: green=cheap, red=expensive</span>
+                </div>
+            </div>
+            <div id="mapContainer" style="padding:1rem;min-height:400px;position:relative;">
+                <div class="loading"><div class="spinner"></div>Loading map data...</div>
+            </div>
+            <div id="mapTooltip" style="display:none;position:fixed;background:var(--gray-900);color:white;padding:0.5rem 0.75rem;border-radius:var(--radius-sm);font-size:0.75rem;z-index:10000;pointer-events:none;max-width:250px;box-shadow:var(--shadow-lg);"></div>
+        </div>
+    </div>
+
     <!-- Alerts Panel -->
     <div class="panel" id="alerts-panel">
         <div class="card">
@@ -1516,7 +1536,7 @@ async function api(endpoint, params = {}) {
 
 async function loadAll() {
     try {
-        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus(), loadDeals(), loadMarketSummary()]);
+        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus(), loadDeals(), loadMarketSummary(), loadMapData()]);
         const failed = results.filter(r => r.status === 'rejected');
         if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
         document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
@@ -2666,6 +2686,124 @@ function clearFavorites() {
     saveFavorites();
     renderFavorites();
     toast('Favorites cleared');
+}
+
+// ─── MAP VIEW ───────────────────────────────────────────────────────────────
+
+let mapData = [];
+
+async function loadMapData() {
+    const city = document.getElementById('mapCityFilter')?.value || '';
+    const el = document.getElementById('mapContainer');
+    el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading map data...</div>';
+
+    try {
+        const params = { limit: 2000 };
+        if (city) params.city = city;
+        const d = await api('/analytics/price-map', params);
+        mapData = d.listings || [];
+        document.getElementById('mapBadge').textContent = fmtN(mapData.length);
+
+        // Populate city filter if not already done
+        const sel = document.getElementById('mapCityFilter');
+        if (sel && sel.options.length <= 1) {
+            try {
+                const cities = await api('/cities');
+                sel.innerHTML = '<option value="">All Cities</option>' +
+                    cities.cities.map(c => `<option value="${c.city}">${c.city}</option>`).join('');
+            } catch (e) {}
+        }
+
+        renderMap(mapData);
+    } catch (e) {
+        el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+    }
+}
+
+function renderMap(listings) {
+    const el = document.getElementById('mapContainer');
+    if (!listings.length) { el.innerHTML = '<div class="empty-state">No listings with coordinates</div>'; return; }
+
+    const lats = listings.map(l => parseFloat(l.latitude)).filter(v => !isNaN(v));
+    const lngs = listings.map(l => parseFloat(l.longitude)).filter(v => !isNaN(v));
+
+    if (!lats.length) { el.innerHTML = '<div class="empty-state">No coordinate data</div>'; return; }
+
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const padLat = (maxLat - minLat) * 0.05 || 0.01;
+    const padLng = (maxLng - minLng) * 0.05 || 0.01;
+
+    const W = 800, H = 500;
+    const prices = listings.map(l => l.price_numeric).filter(Boolean);
+    const minP = Math.min(...prices), maxP = Math.max(...prices);
+    const pRange = maxP - minP || 1;
+
+    function latToY(lat) { return H - ((lat - minLat + padLat) / (maxLat - minLat + 2 * padLat)) * H; }
+    function lngToX(lng) { return ((lng - minLng + padLng) / (maxLng - minLng + 2 * padLng)) * W; }
+    function priceColor(p) {
+        const t = (p - minP) / pRange;
+        const r = Math.round(t * 220);
+        const g = Math.round((1 - t) * 180);
+        return `rgb(${r}, ${g}, 60)`;
+    }
+
+    const dots = listings.map((l, i) => {
+        const lat = parseFloat(l.latitude), lng = parseFloat(l.longitude);
+        if (isNaN(lat) || isNaN(lng)) return '';
+        const x = lngToX(lng), y = latToY(lat);
+        const r = 2.5 + ((l.price_numeric - minP) / pRange) * 3;
+        const color = priceColor(l.price_numeric);
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.7" data-idx="${i}" style="cursor:pointer"/>`;
+    }).join('');
+
+    el.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;background:var(--gray-50);border-radius:var(--radius-sm);" id="mapSvg">
+            ${dots}
+        </svg>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;font-size:0.625rem;color:var(--gray-400);">
+            <span>${fmtN(listings.length)} listings plotted</span>
+            <div style="display:flex;align-items:center;gap:0.25rem;">
+                <span style="width:10px;height:10px;background:rgb(0,180,60);border-radius:50%;"></span> Cheap
+                <span style="width:10px;height:10px;background:rgb(110,90,60);border-radius:50%;margin-right:0.25rem;"></span> Mid
+                <span style="width:10px;height:10px;background:rgb(220,0,60);border-radius:50%;"></span> Expensive
+            </div>
+            <span>&#8362;${fmtP(minP)} - &#8362;${fmtP(maxP)}</span>
+        </div>
+    `;
+
+    // Add hover tooltip
+    const svg = document.getElementById('mapSvg');
+    const tooltip = document.getElementById('mapTooltip');
+    svg.addEventListener('mousemove', e => {
+        const circle = e.target.closest('circle');
+        if (circle) {
+            const idx = parseInt(circle.dataset.idx);
+            const l = listings[idx];
+            if (!l) return;
+            tooltip.innerHTML = `
+                <strong>${l.street || l.neighborhood || 'Listing'}</strong><br>
+                ${l.city}, ${l.neighborhood || ''}<br>
+                &#8362;${fmtP(l.price_numeric)} | ${l.rooms || '?'} rooms | ${l.size_sqm || '?'} sqm
+            `;
+            tooltip.style.display = 'block';
+            tooltip.style.left = e.clientX + 12 + 'px';
+            tooltip.style.top = e.clientY - 10 + 'px';
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
+    svg.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+    // Click to open listing
+    svg.addEventListener('click', e => {
+        const circle = e.target.closest('circle');
+        if (circle) {
+            const idx = parseInt(circle.dataset.idx);
+            const l = listings[idx];
+            if (l) window.open(`https://www.yad2.co.il/item/${l.link_token || l.id}`, '_blank');
+        }
+    });
 }
 
 // ─── SAVED SEARCH ALERTS ────────────────────────────────────────────────────
