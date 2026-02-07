@@ -1033,6 +1033,9 @@ def city_stats(city_name):
                 COUNT(DISTINCT neighborhood) FILTER (WHERE is_active) as neighborhoods
             FROM listings
             WHERE city ILIKE %s
+            GROUP BY city
+            ORDER BY COUNT(*) DESC
+            LIMIT 1
         """, (f"%{city_name}%",))
 
         overview = cur.fetchone()
