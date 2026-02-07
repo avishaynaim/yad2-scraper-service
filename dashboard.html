@@ -864,6 +864,7 @@
         <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
         <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
         <button class="tab" data-tab="deals">Deals<span class="tab-badge" id="dealsBadge">0</span></button>
+        <button class="tab" data-tab="alerts">Alerts<span class="tab-badge" id="alertsBadge">0</span></button>
         <button class="tab" data-tab="favorites">Favorites<span class="tab-badge" id="favoritesBadge">0</span></button>
         <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
     </div>
@@ -1264,6 +1265,65 @@
         </div>
     </div>
 
+    <!-- Alerts Panel -->
+    <div class="panel" id="alerts-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Saved Searches</h2>
+                <button class="btn btn-primary" onclick="showAddAlertForm()">+ New Alert</button>
+            </div>
+            <div id="addAlertForm" style="display:none;padding:1rem 1.25rem;border-bottom:1px solid var(--gray-100);">
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+                    <div>
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">City</label>
+                        <input type="text" id="alertCity" placeholder="Any city" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Max Price</label>
+                        <input type="number" id="alertMaxPrice" placeholder="e.g. 5000" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:100px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Min Rooms</label>
+                        <input type="number" id="alertMinRooms" placeholder="e.g. 3" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:80px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood</label>
+                        <input type="text" id="alertNeighborhood" list="neighborhoodList" placeholder="Any" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveAlert()">Save</button>
+                    <button class="btn btn-secondary" onclick="hideAddAlertForm()">Cancel</button>
+                </div>
+            </div>
+            <div id="savedAlertsList" style="padding:1rem 1.25rem;"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Matching Listings</h2>
+                <span class="badge badge-info" id="alertMatchCount">0 matches</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Alert</th>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Price</th>
+                            <th>Sqm</th>
+                            <th>Added</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alertMatchesBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Favorites Panel -->
     <div class="panel" id="favorites-panel">
         <div class="card">
@@ -1389,6 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTabs();
         initRangeFilters();
         renderPresets();
+        renderAlerts();
         document.getElementById('favoritesBadge').textContent = favorites.size;
     } catch (e) {
         console.error('Init error:', e);
@@ -1500,6 +1561,7 @@ async function loadListings() {
         buildFilters('listings');
         filterAndRender('listings');
         renderFavorites();
+        renderAlerts();
     } catch (e) {
         document.getElementById('listingsBody').innerHTML = `<tr><td colspan="14" class="empty-state">Error: ${e.message}</td></tr>`;
     }
@@ -2604,6 +2666,123 @@ function clearFavorites() {
     saveFavorites();
     renderFavorites();
     toast('Favorites cleared');
+}
+
+// ─── SAVED SEARCH ALERTS ────────────────────────────────────────────────────
+
+const savedAlerts = JSON.parse(localStorage.getItem('yad2_alerts') || '[]');
+
+function showAddAlertForm() {
+    document.getElementById('addAlertForm').style.display = '';
+    document.getElementById('alertCity').focus();
+}
+
+function hideAddAlertForm() {
+    document.getElementById('addAlertForm').style.display = 'none';
+}
+
+function saveAlert() {
+    const city = document.getElementById('alertCity').value.trim();
+    const maxPrice = parseInt(document.getElementById('alertMaxPrice').value) || null;
+    const minRooms = parseInt(document.getElementById('alertMinRooms').value) || null;
+    const neighborhood = document.getElementById('alertNeighborhood').value.trim();
+
+    if (!city && !maxPrice && !minRooms && !neighborhood) {
+        toast('Set at least one filter'); return;
+    }
+
+    const label = [city, neighborhood, maxPrice ? `<${fmtN(maxPrice)}` : '', minRooms ? `${minRooms}+ rooms` : ''].filter(Boolean).join(', ');
+    savedAlerts.push({ city, maxPrice, minRooms, neighborhood, label, created: new Date().toISOString() });
+    localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
+
+    document.getElementById('alertCity').value = '';
+    document.getElementById('alertMaxPrice').value = '';
+    document.getElementById('alertMinRooms').value = '';
+    document.getElementById('alertNeighborhood').value = '';
+    hideAddAlertForm();
+    renderAlerts();
+    toast(`Alert "${label}" saved`);
+}
+
+function deleteAlert(idx) {
+    savedAlerts.splice(idx, 1);
+    localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
+    renderAlerts();
+}
+
+function renderAlerts() {
+    const list = document.getElementById('savedAlertsList');
+    document.getElementById('alertsBadge').textContent = savedAlerts.length;
+
+    if (!savedAlerts.length) {
+        list.innerHTML = '<div class="empty-state">No saved searches. Create one to track new listings matching your criteria.</div>';
+        document.getElementById('alertMatchesBody').innerHTML = '<tr><td colspan="10" class="empty-state">No alerts configured</td></tr>';
+        document.getElementById('alertMatchCount').textContent = '0 matches';
+        return;
+    }
+
+    list.innerHTML = savedAlerts.map((a, i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
+            <div>
+                <span style="font-weight:600;font-size:0.8125rem;color:var(--gray-700);">${a.label}</span>
+                <span style="font-size:0.625rem;color:var(--gray-400);margin-right:0.5rem;">created ${fmtD(a.created)}</span>
+            </div>
+            <button class="preset-btn" onclick="deleteAlert(${i})" style="color:var(--danger);">Delete</button>
+        </div>
+    `).join('');
+
+    // Find matching listings
+    const matches = [];
+    const data = S.listings.allData || [];
+
+    for (const listing of data) {
+        for (let i = 0; i < savedAlerts.length; i++) {
+            const a = savedAlerts[i];
+            let match = true;
+
+            if (a.city && !(listing.city || '').toLowerCase().includes(a.city.toLowerCase())) match = false;
+            if (a.neighborhood && !(listing.neighborhood || '').toLowerCase().includes(a.neighborhood.toLowerCase())) match = false;
+            if (a.maxPrice && listing.price_numeric > a.maxPrice) match = false;
+            if (a.minRooms) {
+                const rooms = parseFloat(listing.rooms);
+                if (isNaN(rooms) || rooms < a.minRooms) match = false;
+            }
+
+            if (match) {
+                matches.push({ listing, alertIdx: i, alertLabel: a.label });
+                break;
+            }
+        }
+    }
+
+    // Sort by first_seen_at (newest first)
+    matches.sort((a, b) => new Date(b.listing.first_seen_at) - new Date(a.listing.first_seen_at));
+
+    document.getElementById('alertMatchCount').textContent = `${fmtN(matches.length)} matches`;
+
+    const tbody = document.getElementById('alertMatchesBody');
+    if (!matches.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No listings match your saved searches</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = matches.slice(0, 100).map(m => {
+        const l = m.listing;
+        const isFav = favorites.has(l.id);
+        return `
+        <tr>
+            <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
+            <td><span class="badge badge-info" style="font-size:0.5625rem;">${m.alertLabel}</span></td>
+            <td>${l.city || '-'}</td>
+            <td>${l.neighborhood || '-'}</td>
+            <td>${l.street || '-'}</td>
+            <td>${l.rooms || '-'}</td>
+            <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
+            <td>${l.size_sqm || '-'}</td>
+            <td>${daysAgo(l.first_seen_at)}</td>
+            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+        </tr>`;
+    }).join('');
 }
 
 // ─── ANALYTICS SORTING ──────────────────────────────────────────────────────
