@@ -798,6 +798,15 @@ def deals_finder():
 
         where = " AND ".join(conditions)
 
+        # Build params list carefully for the CTE + main query
+        query_params = []
+        if city:
+            query_params.append(f"%{city}%")  # CTE city filter
+        query_params.append(min_listings_in_area)  # CTE HAVING
+        query_params.extend(params)  # main WHERE conditions
+        query_params.append(min_discount)  # discount threshold
+        query_params.append(limit)  # LIMIT
+
         cur.execute(f"""
             WITH neighborhood_stats AS (
                 SELECT city, neighborhood,
@@ -824,7 +833,7 @@ def deals_finder():
                 AND l.price_numeric < ns.avg_price * (1 - %s / 100.0)
             ORDER BY discount_pct DESC
             LIMIT %s
-        """, (params + [params[0]] if city else []) + [min_listings_in_area] + params + [min_discount, limit])
+        """, query_params)
 
         deals = [dict(r) for r in cur.fetchall()]
         cur.close()
