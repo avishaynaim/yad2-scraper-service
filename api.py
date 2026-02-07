@@ -1007,6 +1007,71 @@ def compare_neighborhoods():
     return jsonify(results)
 
 
+@app.route("/analytics/stale")
+def stale_listings():
+    """Find listings that have been on the market the longest (potentially overpriced)."""
+    city = request.args.get("city")
+    min_days = request.args.get("min_days", 14, type=int)
+    limit = min(request.args.get("limit", 50, type=int), 200)
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        conditions = [
+            "is_active = TRUE",
+            "price_numeric > 0",
+            "first_seen_at < NOW() - make_interval(days => %s)"
+        ]
+        params = [min_days]
+
+        if city:
+            conditions.append("city ILIKE %s")
+            params.append(f"%{city}%")
+
+        where = " AND ".join(conditions)
+
+        cur.execute(f"""
+            SELECT id, link_token, city, neighborhood, street, rooms,
+                   price_numeric, size_sqm, floor, image_url,
+                   is_merchant, first_seen_at, last_seen_at,
+                   EXTRACT(DAY FROM NOW() - first_seen_at)::int as days_on_market
+            FROM listings
+            WHERE {where}
+            ORDER BY first_seen_at ASC
+            LIMIT %s
+        """, params + [limit])
+
+        listings = [dict(r) for r in cur.fetchall()]
+
+        # Get summary stats
+        cur.execute(f"""
+            SELECT
+                COUNT(*) as total_stale,
+                ROUND(AVG(price_numeric))::int as avg_price,
+                ROUND(AVG(EXTRACT(DAY FROM NOW() - first_seen_at)))::int as avg_days
+            FROM listings
+            WHERE {where}
+        """, params)
+        summary = dict(cur.fetchone())
+
+        cur.close()
+    except Exception as e:
+        logging.error(f"Stale listings error: {e}")
+        return jsonify({"count": 0, "listings": [], "error": "Query failed"}), 500
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify({
+        "count": len(listings),
+        "min_days": min_days,
+        "summary": summary,
+        "listings": listings
+    })
+
+
 @app.route("/analytics/city/<city_name>")
 def city_stats(city_name):
     """Get detailed statistics for a specific city."""
