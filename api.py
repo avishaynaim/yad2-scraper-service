@@ -643,21 +643,27 @@ def price_trends():
         where = " AND ".join(conditions)
 
         cur.execute(f"""
+            WITH ph_with_lag AS (
+                SELECT
+                    ph.listing_id,
+                    ph.price_numeric,
+                    ph.recorded_at,
+                    LAG(ph.price_numeric) OVER (
+                        PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                    ) as prev_price
+                FROM price_history ph
+                JOIN listings l ON l.id = ph.listing_id
+                WHERE {where}
+            )
             SELECT
-                DATE(ph.recorded_at) as date,
+                DATE(recorded_at) as date,
                 COUNT(*) as price_changes,
-                COUNT(DISTINCT ph.listing_id) as listings_affected,
-                ROUND(AVG(ph.price_numeric))::int as avg_price,
-                SUM(CASE WHEN ph.price_numeric < LAG(ph.price_numeric) OVER (
-                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
-                ) THEN 1 ELSE 0 END) as drops,
-                SUM(CASE WHEN ph.price_numeric > LAG(ph.price_numeric) OVER (
-                    PARTITION BY ph.listing_id ORDER BY ph.recorded_at
-                ) THEN 1 ELSE 0 END) as raises
-            FROM price_history ph
-            JOIN listings l ON l.id = ph.listing_id
-            WHERE {where}
-            GROUP BY DATE(ph.recorded_at)
+                COUNT(DISTINCT listing_id) as listings_affected,
+                ROUND(AVG(price_numeric))::int as avg_price,
+                SUM(CASE WHEN prev_price IS NOT NULL AND price_numeric < prev_price THEN 1 ELSE 0 END) as drops,
+                SUM(CASE WHEN prev_price IS NOT NULL AND price_numeric > prev_price THEN 1 ELSE 0 END) as raises
+            FROM ph_with_lag
+            GROUP BY DATE(recorded_at)
             ORDER BY date ASC
         """, params)
 
@@ -680,11 +686,13 @@ def telegram_status():
     """Check if Telegram notifications are configured."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    min_drop = os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5")
+    try:
+        min_drop = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
+    except (ValueError, TypeError):
+        min_drop = 5.0
     return jsonify({
         "configured": bool(bot_token and chat_id),
-        "chat_id": chat_id[:4] + "..." if chat_id and len(chat_id) > 4 else None,
-        "min_drop_percent": float(min_drop)
+        "min_drop_percent": min_drop
     })
 
 
@@ -710,8 +718,8 @@ def telegram_test():
         req = urllib.request.Request(url, data=data)
         resp = urllib.request.urlopen(req, timeout=10)
         return jsonify({"success": True, "message": "Test message sent"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Failed to send Telegram message. Check bot token and chat ID."}), 500
 
 
 if __name__ == "__main__":

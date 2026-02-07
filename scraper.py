@@ -583,34 +583,18 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
     # Send Telegram summary on completion
     if status == "completed":
         try:
-            # Estimate duration from started_at
-            cur2 = None
             conn2 = get_db_connection()
             try:
                 cur2 = conn2.cursor()
-                cur2.execute("SELECT started_at, finished_at FROM scrape_runs WHERE id = %s", (run_id,))
+                cur2.execute(
+                    "SELECT run_type, EXTRACT(EPOCH FROM (finished_at - started_at))/60 as dur "
+                    "FROM scrape_runs WHERE id = %s", (run_id,))
                 row = cur2.fetchone()
-                if row and row[0] and row[1]:
-                    dur = int((row[1] - row[0]).total_seconds() / 60)
-                else:
-                    dur = 0
+                run_type = (row[0] or "full") if row else "full"
+                dur = int(row[1] or 0) if row else 0
+                cur2.close()
             finally:
-                if cur2:
-                    cur2.close()
                 conn2.close()
-
-            # Determine run type
-            run_type = "full"
-            conn3 = get_db_connection()
-            try:
-                cur3 = conn3.cursor()
-                cur3.execute("SELECT run_type FROM scrape_runs WHERE id = %s", (run_id,))
-                rt_row = cur3.fetchone()
-                if rt_row and rt_row[0]:
-                    run_type = rt_row[0]
-                cur3.close()
-            finally:
-                conn3.close()
 
             notify_scrape_summary(run_id, run_type, pages_scraped, total_pages,
                                   listings_new, listings_updated, price_changes, dur)
