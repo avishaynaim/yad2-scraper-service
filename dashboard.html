@@ -1088,15 +1088,15 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Listings</th>
-                            <th>Avg Price</th>
-                            <th>Median</th>
-                            <th>Min</th>
-                            <th>Max</th>
-                            <th>Avg/sqm</th>
-                            <th>Avg Rooms</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('city')">City</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('neighborhood')">Neighborhood</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('listings_count')">Listings</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('avg_price')">Avg Price</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('median_price')">Median</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('min_price')">Min</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('max_price')">Max</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('avg_price_per_sqm')">Avg/sqm</th>
+                            <th style="cursor:pointer" onclick="sortAnalytics('avg_rooms')">Avg Rooms</th>
                         </tr>
                     </thead>
                     <tbody id="analyticsBody"></tbody>
@@ -1143,6 +1143,17 @@
             <button class="btn btn-secondary" onclick="closePresetModal()">Cancel</button>
             <button class="btn btn-primary" onclick="confirmSavePreset()">Save</button>
         </div>
+    </div>
+</div>
+
+<!-- Listing Detail Modal -->
+<div class="modal-overlay" id="detailModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal" style="max-width:600px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 id="detailTitle" style="margin:0;">Listing Details</h3>
+            <button class="btn btn-secondary" onclick="document.getElementById('detailModal').classList.remove('active')" style="padding:0.25rem 0.5rem;">&#10005;</button>
+        </div>
+        <div id="detailContent" style="font-size:0.8125rem;line-height:1.8;"></div>
     </div>
 </div>
 
@@ -1457,22 +1468,12 @@ async function loadNeighborhoodAnalytics() {
 
         if (!d.neighborhoods.length) {
             tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No data</td></tr>';
+            analyticsData = [];
             return;
         }
 
-        tbody.innerHTML = d.neighborhoods.map(n => `
-            <tr onclick="filterByCity('${n.city}')" style="cursor:pointer">
-                <td>${n.city || '-'}</td>
-                <td>${n.neighborhood || '-'}</td>
-                <td>${fmtN(n.listings_count)}</td>
-                <td><strong>&#8362;${fmtP(n.avg_price)}</strong></td>
-                <td>&#8362;${fmtP(n.median_price)}</td>
-                <td>&#8362;${fmtP(n.min_price)}</td>
-                <td>&#8362;${fmtP(n.max_price)}</td>
-                <td>${n.avg_price_per_sqm ? '&#8362;' + fmtP(n.avg_price_per_sqm) : '-'}</td>
-                <td>${n.avg_rooms || '-'}</td>
-            </tr>
-        `).join('');
+        analyticsData = d.neighborhoods;
+        renderAnalyticsBody();
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Error: ${e.message}</td></tr>`;
     }
@@ -1693,10 +1694,10 @@ function renderListingsTable(listings) {
         return;
     }
 
-    tbody.innerHTML = listings.map(l => {
+    tbody.innerHTML = listings.map((l, idx) => {
         const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
         return `
-        <tr>
+        <tr style="cursor:pointer" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
             <td>${l.street || '-'}</td>
@@ -1707,7 +1708,7 @@ function renderListingsTable(listings) {
             <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
             <td>${fmtD(l.first_seen_at)}</td>
-            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank" onclick="event.stopPropagation()">View</a></td>
         </tr>`;
     }).join('');
 }
@@ -2074,6 +2075,84 @@ function deletePreset(i) {
     S.presets.splice(i, 1);
     localStorage.setItem('yad2_presets', JSON.stringify(S.presets));
     renderPresets();
+}
+
+// ─── LISTING DETAIL MODAL ────────────────────────────────────────────────────
+
+function showListingDetail(idx) {
+    const l = S.listings.data[idx];
+    if (!l) return;
+
+    const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+    const link = `https://www.yad2.co.il/item/${l.link_token || l.id}`;
+
+    document.getElementById('detailTitle').textContent = `${l.street || l.neighborhood || 'Listing'}`;
+    document.getElementById('detailContent').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;">
+            <div><strong>City:</strong> ${l.city || '-'}</div>
+            <div><strong>Neighborhood:</strong> ${l.neighborhood || '-'}</div>
+            <div><strong>Street:</strong> ${l.street || '-'}</div>
+            <div><strong>Property Type:</strong> ${l.property_type || '-'}</div>
+            <div><strong>Rooms:</strong> ${l.rooms || '-'}</div>
+            <div><strong>Floor:</strong> ${l.floor || '-'}</div>
+            <div><strong>Size:</strong> ${l.size_sqm ? l.size_sqm + ' sqm' : '-'}</div>
+            <div><strong>Price:</strong> <span style="font-size:1rem;font-weight:700;">&#8362;${fmtP(l.price_numeric)}</span></div>
+            ${ppsqm ? `<div><strong>Price/sqm:</strong> &#8362;${fmtN(ppsqm)}</div>` : ''}
+            <div><strong>Type:</strong> ${l.is_merchant ? 'Agent' : 'Private'}${l.merchant_name ? ' (' + l.merchant_name + ')' : ''}</div>
+            <div><strong>Contact:</strong> ${l.contact_name || '-'}</div>
+            <div><strong>First Seen:</strong> ${fmtDT(l.first_seen_at)}</div>
+            <div><strong>Last Seen:</strong> ${fmtDT(l.last_seen_at)}</div>
+            <div><strong>Date Added:</strong> ${fmtDT(l.date_added)}</div>
+        </div>
+        ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${l.description_line}</div>` : ''}
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;">
+            <a href="${link}" target="_blank" class="btn btn-primary" style="text-decoration:none;">Open on Yad2</a>
+        </div>
+    `;
+    document.getElementById('detailModal').classList.add('active');
+}
+
+// ─── ANALYTICS SORTING ──────────────────────────────────────────────────────
+
+let analyticsData = [];
+let analyticsSort = { col: 'avg_price', ord: 'asc' };
+
+function sortAnalytics(col) {
+    if (analyticsSort.col === col) {
+        analyticsSort.ord = analyticsSort.ord === 'asc' ? 'desc' : 'asc';
+    } else {
+        analyticsSort.col = col;
+        analyticsSort.ord = col === 'city' || col === 'neighborhood' ? 'asc' : 'desc';
+    }
+    renderAnalyticsBody();
+}
+
+function renderAnalyticsBody() {
+    const { col, ord } = analyticsSort;
+    const sorted = [...analyticsData].sort((a, b) => {
+        let av = a[col], bv = b[col];
+        if (av == null) av = '';
+        if (bv == null) bv = '';
+        if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv || '').toLowerCase(); }
+        if (av < bv) return ord === 'asc' ? -1 : 1;
+        if (av > bv) return ord === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const tbody = document.getElementById('analyticsBody');
+    tbody.innerHTML = sorted.map(n => `
+        <tr onclick="filterByCity('${n.city}')" style="cursor:pointer">
+            <td>${n.city || '-'}</td>
+            <td>${n.neighborhood || '-'}</td>
+            <td>${fmtN(n.listings_count)}</td>
+            <td><strong>&#8362;${fmtP(n.avg_price)}</strong></td>
+            <td>&#8362;${fmtP(n.median_price)}</td>
+            <td>&#8362;${fmtP(n.min_price)}</td>
+            <td>&#8362;${fmtP(n.max_price)}</td>
+            <td>${n.avg_price_per_sqm ? '&#8362;' + fmtP(n.avg_price_per_sqm) : '-'}</td>
+            <td>${n.avg_rooms || '-'}</td>
+        </tr>
+    `).join('');
 }
 
 // ─── QUICK SEARCH ───────────────────────────────────────────────────────────
