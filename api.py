@@ -826,7 +826,7 @@ def deals_finder():
                 ns.avg_price::int as area_avg,
                 ns.median_price::int as area_median,
                 ns.area_count,
-                ROUND((1 - l.price_numeric::float / ns.avg_price) * 100, 1) as discount_pct
+                ROUND(((1 - l.price_numeric::numeric / ns.avg_price) * 100)::numeric, 1) as discount_pct
             FROM listings l
             JOIN neighborhood_stats ns ON l.city = ns.city AND l.neighborhood = ns.neighborhood
             WHERE {where}
