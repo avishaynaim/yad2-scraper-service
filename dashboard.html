@@ -2161,7 +2161,7 @@ function renderTopCities(cities) {
     if (!cities.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
     const max = cities[0].count;
     el.innerHTML = `<div class="bar-chart">${cities.slice(0, 10).map((c, i) => `
-        <div class="bar-row">
+        <div class="bar-row" style="cursor:pointer" onclick="showCityDetail('${c.city.replace(/'/g, "\\'")}')">
             <div class="bar-label" title="${c.city}">${c.city}</div>
             <div class="bar-track">
                 <div class="bar-fill" style="width:${(c.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
@@ -2439,6 +2439,71 @@ async function compareNeighborhoods() {
         `;
     } catch (e) {
         el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+    }
+}
+
+// ─── CITY DRILLDOWN ─────────────────────────────────────────────────────────
+
+async function showCityDetail(cityName) {
+    const modal = document.getElementById('detailModal');
+    document.getElementById('detailTitle').textContent = cityName;
+    document.getElementById('detailContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading city stats...</div>';
+    modal.classList.add('active');
+
+    try {
+        const d = await api(`/analytics/city/${encodeURIComponent(cityName)}`);
+        const ov = d.overview || {};
+
+        const neighborhoodBars = (d.neighborhoods || []).slice(0, 10).map((n, i) => {
+            const max = d.neighborhoods[0].count;
+            return `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;margin-bottom:0.25rem;">
+                <span style="width:100px;text-align:right;color:var(--gray-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${n.neighborhood}">${n.neighborhood}</span>
+                <div style="flex:1;height:18px;background:var(--gray-100);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${(n.count/max*100).toFixed(1)}%;background:${COLORS[i%COLORS.length]};border-radius:3px;display:flex;align-items:center;padding:0 0.375rem;">
+                        <span style="font-size:0.5625rem;font-weight:600;color:white;">${n.count}</span>
+                    </div>
+                </div>
+                <span style="font-size:0.625rem;color:var(--gray-400);width:60px;">&#8362;${fmtP(n.avg_price)}</span>
+            </div>`;
+        }).join('');
+
+        const priceBars = (d.price_distribution || []).map((b, i) => {
+            const max = Math.max(...d.price_distribution.map(x => x.count));
+            return `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;margin-bottom:0.25rem;">
+                <span style="width:45px;text-align:right;color:var(--gray-600);">${b.bucket}</span>
+                <div style="flex:1;height:16px;background:var(--gray-100);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${(b.count/max*100).toFixed(1)}%;background:${COLORS[i%COLORS.length]};border-radius:3px;"></div>
+                </div>
+                <span style="font-size:0.625rem;color:var(--gray-400);width:35px;">${fmtN(b.count)}</span>
+            </div>`;
+        }).join('');
+
+        document.getElementById('detailContent').innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;margin-bottom:1rem;">
+                <div><strong>Active:</strong> ${fmtN(ov.active_listings)}</div>
+                <div><strong>Total Ever:</strong> ${fmtN(ov.total_listings)}</div>
+                <div><strong>Avg Price:</strong> &#8362;${fmtP(ov.avg_price)}</div>
+                <div><strong>Median:</strong> &#8362;${fmtP(ov.median_price)}</div>
+                <div><strong>Min:</strong> &#8362;${fmtP(ov.min_price)}</div>
+                <div><strong>Max:</strong> &#8362;${fmtP(ov.max_price)}</div>
+                <div><strong>Avg Rooms:</strong> ${ov.avg_rooms || '-'}</div>
+                <div><strong>Avg &#8362;/sqm:</strong> ${ov.avg_price_per_sqm ? '&#8362;' + fmtP(ov.avg_price_per_sqm) : '-'}</div>
+                <div><strong>Private:</strong> ${fmtN(ov.private_listings)}</div>
+                <div><strong>Agents:</strong> ${fmtN(ov.agent_listings)}</div>
+                <div><strong>New 24h:</strong> ${fmtN(ov.new_24h)}</div>
+                <div><strong>New 7d:</strong> ${fmtN(ov.new_7d)}</div>
+                <div><strong>Neighborhoods:</strong> ${fmtN(ov.neighborhoods)}</div>
+            </div>
+            <div style="font-size:0.6875rem;font-weight:600;color:var(--gray-600);margin-bottom:0.375rem;">Top Neighborhoods</div>
+            ${neighborhoodBars || '<div class="empty-state">No neighborhoods</div>'}
+            <div style="font-size:0.6875rem;font-weight:600;color:var(--gray-600);margin:0.75rem 0 0.375rem;">Price Distribution</div>
+            ${priceBars || '<div class="empty-state">No data</div>'}
+            <div style="margin-top:1rem;display:flex;gap:0.5rem;">
+                <button class="btn btn-primary" onclick="filterByCity('${cityName.replace(/'/g, "\\'")}')">View Listings</button>
+            </div>
+        `;
+    } catch (e) {
+        document.getElementById('detailContent').innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
     }
 }
 

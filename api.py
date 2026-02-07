@@ -1005,6 +1005,96 @@ def compare_neighborhoods():
     return jsonify(results)
 
 
+@app.route("/analytics/city/<city_name>")
+def city_stats(city_name):
+    """Get detailed statistics for a specific city."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                city,
+                COUNT(*) as total_listings,
+                COUNT(*) FILTER (WHERE is_active) as active_listings,
+                ROUND(AVG(price_numeric) FILTER (WHERE is_active AND price_numeric > 0))::int as avg_price,
+                MIN(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as min_price,
+                MAX(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as max_price,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)
+                    FILTER (WHERE is_active AND price_numeric > 0)::int as median_price,
+                ROUND(AVG(CASE WHEN is_active AND rooms ~ '^[0-9.]+$' THEN rooms::numeric END), 1) as avg_rooms,
+                ROUND(AVG(CASE WHEN is_active AND size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
+                    THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                COUNT(*) FILTER (WHERE is_active AND is_merchant) as agent_listings,
+                COUNT(*) FILTER (WHERE is_active AND NOT is_merchant) as private_listings,
+                COUNT(*) FILTER (WHERE first_seen_at > NOW() - INTERVAL '24 hours') as new_24h,
+                COUNT(*) FILTER (WHERE first_seen_at > NOW() - INTERVAL '7 days') as new_7d,
+                COUNT(DISTINCT neighborhood) FILTER (WHERE is_active) as neighborhoods
+            FROM listings
+            WHERE city ILIKE %s
+        """, (f"%{city_name}%",))
+
+        overview = cur.fetchone()
+        if not overview or overview["total_listings"] == 0:
+            cur.close()
+            return jsonify({"error": "City not found"}), 404
+
+        result = {"overview": dict(overview)}
+
+        # Top neighborhoods in this city
+        cur.execute("""
+            SELECT neighborhood, COUNT(*) as count,
+                ROUND(AVG(price_numeric) FILTER (WHERE price_numeric > 0))::int as avg_price,
+                MIN(price_numeric) FILTER (WHERE price_numeric > 0) as min_price,
+                MAX(price_numeric) FILTER (WHERE price_numeric > 0) as max_price
+            FROM listings
+            WHERE is_active AND city ILIKE %s AND neighborhood IS NOT NULL
+            GROUP BY neighborhood
+            ORDER BY count DESC
+            LIMIT 20
+        """, (f"%{city_name}%",))
+        result["neighborhoods"] = [dict(r) for r in cur.fetchall()]
+
+        # Room distribution
+        cur.execute("""
+            SELECT rooms, COUNT(*) as count
+            FROM listings
+            WHERE is_active AND city ILIKE %s AND rooms IS NOT NULL AND rooms != ''
+            GROUP BY rooms
+            ORDER BY rooms
+        """, (f"%{city_name}%",))
+        result["rooms_distribution"] = [dict(r) for r in cur.fetchall()]
+
+        # Price buckets
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN price_numeric < 2000 THEN '0-2K'
+                    WHEN price_numeric < 3000 THEN '2-3K'
+                    WHEN price_numeric < 4000 THEN '3-4K'
+                    WHEN price_numeric < 5000 THEN '4-5K'
+                    WHEN price_numeric < 6000 THEN '5-6K'
+                    WHEN price_numeric < 8000 THEN '6-8K'
+                    WHEN price_numeric < 10000 THEN '8-10K'
+                    ELSE '10K+'
+                END as bucket,
+                COUNT(*) as count
+            FROM listings
+            WHERE is_active AND city ILIKE %s AND price_numeric > 0
+            GROUP BY bucket
+            ORDER BY MIN(price_numeric)
+        """, (f"%{city_name}%",))
+        result["price_distribution"] = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify(result)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)
