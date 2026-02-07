@@ -40,7 +40,10 @@ FULL_SCRAPE_EVERY = int(os.environ.get("FULL_SCRAPE_EVERY", "6"))
 # Telegram notifications (optional)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))  # minimum % drop to notify
+try:
+    TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
+except (ValueError, TypeError):
+    TELEGRAM_MIN_DROP_PERCENT = 5.0
 
 # Logging
 logging.basicConfig(
@@ -78,107 +81,109 @@ def get_db_connection(retries=5, delay=3):
 def init_db():
     """Initialize database tables."""
     conn = get_db_connection()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    # Main listings table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS listings (
-            id VARCHAR(50) PRIMARY KEY,
-            ad_number VARCHAR(50),
-            link_token VARCHAR(50),
-            street VARCHAR(255),
-            property_type VARCHAR(100),
-            description_line TEXT,
-            city VARCHAR(100),
-            neighborhood VARCHAR(100),
-            price VARCHAR(50),
-            price_numeric INTEGER,
-            currency VARCHAR(10),
-            rooms VARCHAR(20),
-            floor VARCHAR(20),
-            size_sqm VARCHAR(50),
-            date_added TIMESTAMP,
-            updated_at VARCHAR(100),
-            contact_name VARCHAR(255),
-            is_merchant BOOLEAN DEFAULT FALSE,
-            merchant_name VARCHAR(255),
-            latitude DECIMAL(10, 8),
-            longitude DECIMAL(11, 8),
-            image_url TEXT,
-            images_count INTEGER DEFAULT 0,
-            amenities JSONB,
-            raw_data JSONB,
-            first_seen_at TIMESTAMP DEFAULT NOW(),
-            last_seen_at TIMESTAMP DEFAULT NOW(),
-            is_active BOOLEAN DEFAULT TRUE
-        );
+        # Main listings table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS listings (
+                id VARCHAR(50) PRIMARY KEY,
+                ad_number VARCHAR(50),
+                link_token VARCHAR(50),
+                street VARCHAR(255),
+                property_type VARCHAR(100),
+                description_line TEXT,
+                city VARCHAR(100),
+                neighborhood VARCHAR(100),
+                price VARCHAR(50),
+                price_numeric INTEGER,
+                currency VARCHAR(10),
+                rooms VARCHAR(20),
+                floor VARCHAR(20),
+                size_sqm VARCHAR(50),
+                date_added TIMESTAMP,
+                updated_at VARCHAR(100),
+                contact_name VARCHAR(255),
+                is_merchant BOOLEAN DEFAULT FALSE,
+                merchant_name VARCHAR(255),
+                latitude DECIMAL(10, 8),
+                longitude DECIMAL(11, 8),
+                image_url TEXT,
+                images_count INTEGER DEFAULT 0,
+                amenities JSONB,
+                raw_data JSONB,
+                first_seen_at TIMESTAMP DEFAULT NOW(),
+                last_seen_at TIMESTAMP DEFAULT NOW(),
+                is_active BOOLEAN DEFAULT TRUE
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_listings_city ON listings(city);
-        CREATE INDEX IF NOT EXISTS idx_listings_neighborhood ON listings(neighborhood);
-        CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_numeric);
-        CREATE INDEX IF NOT EXISTS idx_listings_rooms ON listings(rooms);
-        CREATE INDEX IF NOT EXISTS idx_listings_last_seen ON listings(last_seen_at);
-        CREATE INDEX IF NOT EXISTS idx_listings_is_active ON listings(is_active);
-    """)
+            CREATE INDEX IF NOT EXISTS idx_listings_city ON listings(city);
+            CREATE INDEX IF NOT EXISTS idx_listings_neighborhood ON listings(neighborhood);
+            CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price_numeric);
+            CREATE INDEX IF NOT EXISTS idx_listings_rooms ON listings(rooms);
+            CREATE INDEX IF NOT EXISTS idx_listings_last_seen ON listings(last_seen_at);
+            CREATE INDEX IF NOT EXISTS idx_listings_is_active ON listings(is_active);
+        """)
 
-    # Price history table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS price_history (
-            id SERIAL PRIMARY KEY,
-            listing_id VARCHAR(50) NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
-            price VARCHAR(50),
-            price_numeric INTEGER,
-            recorded_at TIMESTAMP DEFAULT NOW(),
-            scrape_run_id INTEGER
-        );
+        # Price history table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id SERIAL PRIMARY KEY,
+                listing_id VARCHAR(50) NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+                price VARCHAR(50),
+                price_numeric INTEGER,
+                recorded_at TIMESTAMP DEFAULT NOW(),
+                scrape_run_id INTEGER
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_price_history_listing ON price_history(listing_id);
-        CREATE INDEX IF NOT EXISTS idx_price_history_recorded ON price_history(recorded_at);
-        CREATE INDEX IF NOT EXISTS idx_price_history_listing_recorded ON price_history(listing_id, recorded_at DESC);
-    """)
+            CREATE INDEX IF NOT EXISTS idx_price_history_listing ON price_history(listing_id);
+            CREATE INDEX IF NOT EXISTS idx_price_history_recorded ON price_history(recorded_at);
+            CREATE INDEX IF NOT EXISTS idx_price_history_listing_recorded ON price_history(listing_id, recorded_at DESC);
+        """)
 
-    # Scrape runs table
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS scrape_runs (
-            id SERIAL PRIMARY KEY,
-            started_at TIMESTAMP DEFAULT NOW(),
-            finished_at TIMESTAMP,
-            total_pages INTEGER,
-            pages_scraped INTEGER DEFAULT 0,
-            pages_failed INTEGER DEFAULT 0,
-            listings_found INTEGER DEFAULT 0,
-            listings_new INTEGER DEFAULT 0,
-            listings_updated INTEGER DEFAULT 0,
-            price_changes INTEGER DEFAULT 0,
-            status VARCHAR(50) DEFAULT 'running',
-            error_message TEXT,
-            run_type VARCHAR(20) DEFAULT 'full',
-            last_page_scraped INTEGER DEFAULT 0,
-            scraped_pages JSONB DEFAULT '[]'
-        );
-    """)
+        # Scrape runs table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scrape_runs (
+                id SERIAL PRIMARY KEY,
+                started_at TIMESTAMP DEFAULT NOW(),
+                finished_at TIMESTAMP,
+                total_pages INTEGER,
+                pages_scraped INTEGER DEFAULT 0,
+                pages_failed INTEGER DEFAULT 0,
+                listings_found INTEGER DEFAULT 0,
+                listings_new INTEGER DEFAULT 0,
+                listings_updated INTEGER DEFAULT 0,
+                price_changes INTEGER DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'running',
+                error_message TEXT,
+                run_type VARCHAR(20) DEFAULT 'full',
+                last_page_scraped INTEGER DEFAULT 0,
+                scraped_pages JSONB DEFAULT '[]'
+            );
+        """)
 
-    # Add new columns if table already exists without them
-    for col, coltype, default in [
-        ("run_type", "VARCHAR(20)", "'full'"),
-        ("last_page_scraped", "INTEGER", "0"),
-        ("scraped_pages", "JSONB", "'[]'"),
-        ("price_changes", "INTEGER", "0"),
-    ]:
-        cur.execute(f"ALTER TABLE scrape_runs ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT {default};")
+        # Add new columns if table already exists without them
+        for col, coltype, default in [
+            ("run_type", "VARCHAR(20)", "'full'"),
+            ("last_page_scraped", "INTEGER", "0"),
+            ("scraped_pages", "JSONB", "'[]'"),
+            ("price_changes", "INTEGER", "0"),
+        ]:
+            cur.execute(f"ALTER TABLE scrape_runs ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT {default};")
 
-    # Scraper state table — persists run_counter across restarts
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS scraper_state (
-            key VARCHAR(50) PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-    """)
+        # Scraper state table — persists run_counter across restarts
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scraper_state (
+                key VARCHAR(50) PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
     logger.info("Database initialized")
 
 
@@ -1125,12 +1130,14 @@ def main():
     # Run #14 only scraped 163/833 pages but still called mark_inactive, deactivating ~17k listings
     if get_state("fix_reactivate_v1", "0") == "0":
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("UPDATE listings SET is_active = TRUE WHERE is_active = FALSE")
-        reactivated = cur.rowcount
-        conn.commit()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE listings SET is_active = TRUE WHERE is_active = FALSE")
+            reactivated = cur.rowcount
+            conn.commit()
+            cur.close()
+        finally:
+            conn.close()
         set_state("fix_reactivate_v1", "1")
         if reactivated > 0:
             logger.info(f"One-time fix: re-activated {reactivated} listings wrongly marked inactive")

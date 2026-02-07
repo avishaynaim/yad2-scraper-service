@@ -50,7 +50,7 @@ def put_db(conn):
         _get_pool().putconn(conn)
     except Exception:
         try:
-            put_db(conn)
+            conn.close()
         except Exception:
             pass
 

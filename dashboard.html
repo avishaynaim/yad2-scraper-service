@@ -1378,7 +1378,7 @@ async function loadTelegramStatus() {
         const d = await api('/telegram/status');
         const el = document.getElementById('telegramStatus');
         if (d.configured) {
-            el.innerHTML = `<span class="badge badge-success">Configured</span> Chat: ${d.chat_id} | Min drop: ${d.min_drop_percent}%`;
+            el.innerHTML = `<span class="badge badge-success">Configured</span> Min drop: ${d.min_drop_percent}%`;
             document.getElementById('telegramTestBtn').style.display = '';
         } else {
             el.innerHTML = '<span class="badge badge-warning">Not configured</span> Set env vars to enable';
@@ -1701,7 +1701,7 @@ function filterListings() {
     if (f.price_max) data = data.filter(i => i.price_numeric <= f.price_max);
 
     // Compute price_per_sqm for sorting
-    data.forEach(i => { i.price_per_sqm = (i.price_numeric && i.size_sqm) ? Math.round(i.price_numeric / i.size_sqm) : 0; });
+    data.forEach(i => { const sqm = parseInt(i.size_sqm); i.price_per_sqm = (i.price_numeric && sqm > 0) ? Math.round(i.price_numeric / sqm) : 0; });
 
     // Sort
     const { col, ord } = S.listings.sort;
