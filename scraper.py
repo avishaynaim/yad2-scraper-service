@@ -187,26 +187,30 @@ def init_db():
 def get_state(key: str, default: str = "0") -> str:
     """Get a persisted state value."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT value FROM scraper_state WHERE key = %s", (key,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    return row[0] if row else default
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM scraper_state WHERE key = %s", (key,))
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else default
+    finally:
+        conn.close()
 
 
 def set_state(key: str, value: str):
     """Persist a state value."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO scraper_state (key, value, updated_at)
-        VALUES (%s, %s, NOW())
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-    """, (key, value))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO scraper_state (key, value, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+        """, (key, value))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
 
 def cleanup_stale_runs():
@@ -232,19 +236,21 @@ def cleanup_stale_runs():
 def get_interrupted_run() -> Optional[dict]:
     """Check for an interrupted scrape run (status='running') that has actual progress."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, run_type, total_pages, pages_scraped, pages_failed,
-               listings_found, listings_new, listings_updated, price_changes,
-               last_page_scraped, scraped_pages, started_at
-        FROM scrape_runs
-        WHERE status = 'running' AND pages_scraped > 0
-        ORDER BY id DESC
-        LIMIT 1
-    """)
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, run_type, total_pages, pages_scraped, pages_failed,
+                   listings_found, listings_new, listings_updated, price_changes,
+                   last_page_scraped, scraped_pages, started_at
+            FROM scrape_runs
+            WHERE status = 'running' AND pages_scraped > 0
+            ORDER BY id DESC
+            LIMIT 1
+        """)
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
 
     if not row:
         return None
@@ -276,31 +282,33 @@ def update_scrape_progress(run_id: int, pages_scraped: int, pages_failed: int,
                            total_pages: int = None):
     """Save current scrape progress to DB (called after each page)."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    pages_list = json.dumps(sorted(scraped_pages))
-    if total_pages is not None:
-        cur.execute("""
-            UPDATE scrape_runs SET
-                total_pages = %s, pages_scraped = %s, pages_failed = %s,
-                listings_found = %s, listings_new = %s, listings_updated = %s,
-                price_changes = %s, last_page_scraped = %s, scraped_pages = %s
-            WHERE id = %s
-        """, (total_pages, pages_scraped, pages_failed, listings_found,
-              listings_new, listings_updated, price_changes,
-              last_page_scraped, pages_list, run_id))
-    else:
-        cur.execute("""
-            UPDATE scrape_runs SET
-                pages_scraped = %s, pages_failed = %s,
-                listings_found = %s, listings_new = %s, listings_updated = %s,
-                price_changes = %s, last_page_scraped = %s, scraped_pages = %s
-            WHERE id = %s
-        """, (pages_scraped, pages_failed, listings_found,
-              listings_new, listings_updated, price_changes,
-              last_page_scraped, pages_list, run_id))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        pages_list = json.dumps(sorted(scraped_pages))
+        if total_pages is not None:
+            cur.execute("""
+                UPDATE scrape_runs SET
+                    total_pages = %s, pages_scraped = %s, pages_failed = %s,
+                    listings_found = %s, listings_new = %s, listings_updated = %s,
+                    price_changes = %s, last_page_scraped = %s, scraped_pages = %s
+                WHERE id = %s
+            """, (total_pages, pages_scraped, pages_failed, listings_found,
+                  listings_new, listings_updated, price_changes,
+                  last_page_scraped, pages_list, run_id))
+        else:
+            cur.execute("""
+                UPDATE scrape_runs SET
+                    pages_scraped = %s, pages_failed = %s,
+                    listings_found = %s, listings_new = %s, listings_updated = %s,
+                    price_changes = %s, last_page_scraped = %s, scraped_pages = %s
+                WHERE id = %s
+            """, (pages_scraped, pages_failed, listings_found,
+                  listings_new, listings_updated, price_changes,
+                  last_page_scraped, pages_list, run_id))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
 
 # ─── TELEGRAM NOTIFICATIONS ─────────────────────────────────────────────────────
@@ -367,14 +375,15 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
         return 0, 0, 0
 
     conn = get_db_connection()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    now = datetime.now(timezone.utc)
-    new_count = 0
-    updated_count = 0
-    price_changes = 0
+        now = datetime.now(timezone.utc)
+        new_count = 0
+        updated_count = 0
+        price_changes = 0
 
-    for listing in listings:
+        for listing in listings:
         # Parse price to numeric
         price_numeric = None
         price_str = listing.get("price", "")
@@ -499,9 +508,10 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                     VALUES (%s, %s, %s, %s, %s)
                 """, (listing["id"], price_str, price_numeric, now, run_id))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
     return new_count, updated_count, price_changes
 
@@ -510,18 +520,18 @@ def mark_inactive_listings_by_run(run_started_at):
     """Mark listings not seen during a full scrape as inactive.
     Uses the run's start time to find which listings were updated during this run."""
     conn = get_db_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        UPDATE listings
-        SET is_active = FALSE
-        WHERE is_active = TRUE AND last_seen_at < %s
-    """, (run_started_at,))
-
-    affected = cur.rowcount
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE listings
+            SET is_active = FALSE
+            WHERE is_active = TRUE AND last_seen_at < %s
+        """, (run_started_at,))
+        affected = cur.rowcount
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
     if affected > 0:
         logger.info(f"Marked {affected} listings as inactive (not seen since {run_started_at})")
@@ -530,27 +540,31 @@ def mark_inactive_listings_by_run(run_started_at):
 def start_scrape_run(run_type: str = "full") -> int:
     """Create a new scrape run record."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO scrape_runs (started_at, status, run_type) VALUES (NOW(), 'running', %s) RETURNING id",
-        (run_type,)
-    )
-    run_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    conn.close()
-    return run_id
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO scrape_runs (started_at, status, run_type) VALUES (NOW(), 'running', %s) RETURNING id",
+            (run_type,)
+        )
+        run_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        return run_id
+    finally:
+        conn.close()
 
 
 def get_completed_run_count() -> int:
     """Get number of completed scrape runs."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM scrape_runs WHERE status = 'completed'")
-    count = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-    return count
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM scrape_runs WHERE status = 'completed'")
+        count = cur.fetchone()[0]
+        cur.close()
+        return count
+    finally:
+        conn.close()
 
 
 def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
@@ -560,25 +574,27 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
                        status: str = "completed", error: str = None):
     """Update scrape run with final stats."""
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        UPDATE scrape_runs SET
-            finished_at = NOW(),
-            total_pages = %s,
-            pages_scraped = %s,
-            pages_failed = %s,
-            listings_found = %s,
-            listings_new = %s,
-            listings_updated = %s,
-            price_changes = %s,
-            status = %s,
-            error_message = %s
-        WHERE id = %s
-    """, (total_pages, pages_scraped, pages_failed, listings_found,
-          listings_new, listings_updated, price_changes, status, error, run_id))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE scrape_runs SET
+                finished_at = NOW(),
+                total_pages = %s,
+                pages_scraped = %s,
+                pages_failed = %s,
+                listings_found = %s,
+                listings_new = %s,
+                listings_updated = %s,
+                price_changes = %s,
+                status = %s,
+                error_message = %s
+            WHERE id = %s
+        """, (total_pages, pages_scraped, pages_failed, listings_found,
+              listings_new, listings_updated, price_changes, status, error, run_id))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
 
     # Send Telegram summary on completion
     if status == "completed":
