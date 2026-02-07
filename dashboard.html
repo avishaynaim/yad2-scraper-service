@@ -772,10 +772,10 @@
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
+            right: 0;
             width: 20px;
             height: 100%;
-            background: linear-gradient(to left, transparent, rgba(0,0,0,0.03));
+            background: linear-gradient(to right, transparent, rgba(0,0,0,0.03));
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.3s;
@@ -1288,6 +1288,7 @@
                             <th>Area Avg</th>
                             <th>Discount</th>
                             <th>Sqm</th>
+                            <th>&#8362;/sqm</th>
                             <th>Type</th>
                             <th>Link</th>
                         </tr>
@@ -1562,6 +1563,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btt = document.getElementById('backToTop');
     window.addEventListener('scroll', () => {
         btt.style.display = window.scrollY > 400 ? 'block' : 'none';
+    });
+
+    // Table scroll indicator
+    document.querySelectorAll('.table-container').forEach(tc => {
+        tc.addEventListener('scroll', () => {
+            tc.classList.toggle('scrolled', tc.scrollLeft > 10);
+        });
     });
 
     // Keyboard shortcuts for tab navigation
@@ -2291,7 +2299,7 @@ async function loadDeals() {
     const city = document.getElementById('dealsCityFilter')?.value || '';
     const discount = document.getElementById('dealsDiscountFilter')?.value || '15';
     const tbody = document.getElementById('dealsBody');
-    tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><div class="loading"><div class="spinner"></div>Loading...</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><div class="loading"><div class="spinner"></div>Loading...</div></td></tr>';
 
     try {
         const params = { min_discount: discount, limit: 100 };
@@ -2307,7 +2315,7 @@ async function loadDeals() {
         }
 
         if (!d.deals.length) {
-            tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No deals found. Try lowering the discount threshold.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="empty-state">No deals found. Try lowering the discount threshold.</td></tr>';
             return;
         }
 
@@ -2324,12 +2332,13 @@ async function loadDeals() {
                 <td style="color:var(--gray-400);text-decoration:line-through;">&#8362;${fmtP(dl.area_avg)}</td>
                 <td><span class="badge badge-success">-${Math.round(dl.discount_pct)}%</span></td>
                 <td>${dl.size_sqm || '-'}</td>
+                <td class="price-sqm">${dl.price_numeric && parseInt(dl.size_sqm) > 0 ? '&#8362;' + fmtN(Math.round(dl.price_numeric / parseInt(dl.size_sqm))) : '-'}</td>
                 <td>${dl.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
                 <td><a href="https://www.yad2.co.il/item/${dl.link_token || dl.id}" target="_blank">View</a></td>
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 
@@ -2416,7 +2425,7 @@ async function loadStaleListings() {
     try {
         const d = await api('/analytics/stale', { min_days: minDays, limit: 50 });
         const summary = d.summary || {};
-        document.getElementById('staleSummary').textContent =
+        document.getElementById('staleSummary').innerHTML =
             `${fmtN(summary.total_stale || 0)} listings on market ${minDays}+ days | Avg ${summary.avg_days || 0} days | Avg price &#8362;${fmtP(summary.avg_price)}`;
 
         if (!d.listings.length) {
@@ -2426,9 +2435,11 @@ async function loadStaleListings() {
 
         tbody.innerHTML = d.listings.map(l => {
             const isFav = favorites.has(l.id);
-            const daysBadge = l.days_on_market > 30
-                ? `<span class="badge badge-danger">${l.days_on_market}d</span>`
-                : `<span class="badge badge-warning">${l.days_on_market}d</span>`;
+            const daysBadge = l.days_on_market > 60
+                ? `<span class="badge badge-danger" title="Over 60 days">${l.days_on_market}d</span>`
+                : l.days_on_market > 30
+                ? `<span class="badge badge-warning" title="Over 30 days">${l.days_on_market}d</span>`
+                : `<span class="badge badge-info">${l.days_on_market}d</span>`;
             return `
             <tr>
                 <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>

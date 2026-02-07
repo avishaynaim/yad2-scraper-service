@@ -255,11 +255,11 @@ def list_listings():
         params.append(max_price)
 
     if min_rooms:
-        conditions.append("CASE WHEN rooms ~ '^[0-9]+$' THEN rooms::int ELSE 0 END >= %s")
+        conditions.append("CASE WHEN rooms ~ '^[0-9.]+$' THEN rooms::numeric ELSE 0 END >= %s")
         params.append(min_rooms)
 
     if max_rooms:
-        conditions.append("CASE WHEN rooms ~ '^[0-9]+$' THEN rooms::int ELSE 0 END <= %s")
+        conditions.append("CASE WHEN rooms ~ '^[0-9.]+$' THEN rooms::numeric ELSE 0 END <= %s")
         params.append(max_rooms)
 
     if is_merchant is not None:
@@ -1088,6 +1088,7 @@ def city_stats(city_name):
                 ROUND(AVG(price_numeric) FILTER (WHERE is_active AND price_numeric > 0))::int as avg_price,
                 MIN(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as min_price,
                 MAX(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as max_price,
+                (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN is_active AND price_numeric > 0 THEN price_numeric END))::int as median_price,
                 ROUND(AVG(CASE WHEN is_active AND rooms ~ '^[0-9.]+$' THEN rooms::numeric END), 1) as avg_rooms,
                 ROUND(AVG(CASE WHEN is_active AND size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
                     THEN price_numeric::numeric / size_sqm::int END))::int as avg_price_per_sqm,
