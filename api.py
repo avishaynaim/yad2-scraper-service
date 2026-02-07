@@ -931,6 +931,78 @@ def market_summary():
     })
 
 
+@app.route("/analytics/compare")
+def compare_neighborhoods():
+    """Compare two neighborhoods side by side."""
+    n1 = request.args.get("n1", "")
+    n2 = request.args.get("n2", "")
+    c1 = request.args.get("c1", "")  # optional city for n1
+    c2 = request.args.get("c2", "")  # optional city for n2
+
+    if not n1 or not n2:
+        return jsonify({"error": "Both n1 and n2 (neighborhood names) are required"}), 400
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        results = {}
+        for label, neigh, city in [("n1", n1, c1), ("n2", n2, c2)]:
+            conditions = ["is_active = TRUE", "price_numeric > 0", "neighborhood ILIKE %s"]
+            params = [f"%{neigh}%"]
+            if city:
+                conditions.append("city ILIKE %s")
+                params.append(f"%{city}%")
+
+            where = " AND ".join(conditions)
+
+            cur.execute(f"""
+                SELECT
+                    city,
+                    neighborhood,
+                    COUNT(*) as listings_count,
+                    ROUND(AVG(price_numeric))::int as avg_price,
+                    MIN(price_numeric) as min_price,
+                    MAX(price_numeric) as max_price,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)::int as median_price,
+                    ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
+                        THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                    ROUND(AVG(CASE WHEN rooms ~ '^[0-9.]+$' THEN rooms::float END), 1) as avg_rooms,
+                    ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' THEN size_sqm::int END))::int as avg_sqm,
+                    COUNT(*) FILTER (WHERE is_merchant) as agents,
+                    COUNT(*) FILTER (WHERE NOT is_merchant) as private
+                FROM listings
+                WHERE {where}
+                GROUP BY city, neighborhood
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            """, params)
+
+            row = cur.fetchone()
+            if row:
+                results[label] = dict(row)
+            else:
+                results[label] = {"neighborhood": neigh, "city": city or "Not found", "listings_count": 0}
+
+            # Room distribution for this neighborhood
+            cur.execute(f"""
+                SELECT rooms, COUNT(*) as count
+                FROM listings
+                WHERE {where} AND rooms IS NOT NULL AND rooms != ''
+                GROUP BY rooms
+                ORDER BY rooms
+            """, params)
+            results[f"{label}_rooms"] = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify(results)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)

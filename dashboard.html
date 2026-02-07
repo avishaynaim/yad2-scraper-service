@@ -1168,6 +1168,28 @@
                 </table>
             </div>
         </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Compare Neighborhoods</h2>
+            </div>
+            <div style="padding:1rem 1.25rem;">
+                <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:150px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 1</label>
+                        <input type="text" id="compareN1" placeholder="e.g. Florentin" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                    </div>
+                    <div style="flex:1;min-width:150px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 2</label>
+                        <input type="text" id="compareN2" placeholder="e.g. Neve Tzedek" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                    </div>
+                    <div style="display:flex;align-items:flex-end;">
+                        <button class="btn btn-primary" onclick="compareNeighborhoods()">Compare</button>
+                    </div>
+                </div>
+                <div id="compareResult"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Deals Panel -->
@@ -2182,6 +2204,80 @@ function renderNeighborhoodCompare(cheapest, expensive) {
             </div>
         </div>
     `;
+}
+
+// ─── COMPARE NEIGHBORHOODS ──────────────────────────────────────────────────
+
+async function compareNeighborhoods() {
+    const n1 = document.getElementById('compareN1').value.trim();
+    const n2 = document.getElementById('compareN2').value.trim();
+    const el = document.getElementById('compareResult');
+
+    if (!n1 || !n2) { toast('Enter both neighborhood names'); return; }
+
+    el.innerHTML = '<div class="loading"><div class="spinner"></div>Comparing...</div>';
+
+    try {
+        const d = await api('/analytics/compare', { n1, n2 });
+        const a = d.n1 || {};
+        const b = d.n2 || {};
+
+        if (!a.listings_count && !b.listings_count) {
+            el.innerHTML = '<div class="empty-state">No data found for either neighborhood</div>';
+            return;
+        }
+
+        const rows = [
+            ['City', a.city || '-', b.city || '-'],
+            ['Listings', fmtN(a.listings_count || 0), fmtN(b.listings_count || 0)],
+            ['Avg Price', `&#8362;${fmtP(a.avg_price)}`, `&#8362;${fmtP(b.avg_price)}`],
+            ['Median Price', `&#8362;${fmtP(a.median_price)}`, `&#8362;${fmtP(b.median_price)}`],
+            ['Min Price', `&#8362;${fmtP(a.min_price)}`, `&#8362;${fmtP(b.min_price)}`],
+            ['Max Price', `&#8362;${fmtP(a.max_price)}`, `&#8362;${fmtP(b.max_price)}`],
+            ['Avg/sqm', a.avg_price_per_sqm ? `&#8362;${fmtP(a.avg_price_per_sqm)}` : '-', b.avg_price_per_sqm ? `&#8362;${fmtP(b.avg_price_per_sqm)}` : '-'],
+            ['Avg Rooms', a.avg_rooms || '-', b.avg_rooms || '-'],
+            ['Avg Sqm', a.avg_sqm ? `${a.avg_sqm}` : '-', b.avg_sqm ? `${b.avg_sqm}` : '-'],
+            ['Private', fmtN(a.private || 0), fmtN(b.private || 0)],
+            ['Agents', fmtN(a.agents || 0), fmtN(b.agents || 0)],
+        ];
+
+        // Highlight cheaper option
+        const winColor = 'var(--success)';
+        const loseColor = 'var(--gray-400)';
+
+        el.innerHTML = `
+            <table style="font-size:0.8125rem;">
+                <thead>
+                    <tr>
+                        <th style="text-align:right;">Metric</th>
+                        <th style="text-align:center;color:var(--primary);font-weight:700;">${a.neighborhood || n1}</th>
+                        <th style="text-align:center;color:var(--info);font-weight:700;">${b.neighborhood || n2}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(([label, v1, v2]) => `
+                        <tr>
+                            <td style="font-weight:500;color:var(--gray-600);">${label}</td>
+                            <td style="text-align:center;">${v1}</td>
+                            <td style="text-align:center;">${v2}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <div style="margin-top:1rem;display:flex;gap:1rem;">
+                <div style="flex:1;">
+                    <div style="font-size:0.6875rem;font-weight:600;color:var(--primary);margin-bottom:0.375rem;">Room Distribution - ${a.neighborhood || n1}</div>
+                    ${(d.n1_rooms || []).map(r => `<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.125rem 0;"><span>${r.rooms} rooms</span><span style="font-weight:500;">${r.count}</span></div>`).join('') || '<div class="empty-state">No data</div>'}
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:0.6875rem;font-weight:600;color:var(--info);margin-bottom:0.375rem;">Room Distribution - ${b.neighborhood || n2}</div>
+                    ${(d.n2_rooms || []).map(r => `<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.125rem 0;"><span>${r.rooms} rooms</span><span style="font-weight:500;">${r.count}</span></div>`).join('') || '<div class="empty-state">No data</div>'}
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+    }
 }
 
 // ─── SORTING ────────────────────────────────────────────────────────────────
