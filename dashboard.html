@@ -862,6 +862,7 @@
         <button class="tab" data-tab="listings">Listings<span class="tab-badge" id="listingsBadge">0</span></button>
         <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
         <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
+        <button class="tab" data-tab="deals">Deals<span class="tab-badge" id="dealsBadge">0</span></button>
         <button class="tab" data-tab="favorites">Favorites<span class="tab-badge" id="favoritesBadge">0</span></button>
         <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
     </div>
@@ -1156,6 +1157,76 @@
         </div>
     </div>
 
+    <!-- Deals Panel -->
+    <div class="panel" id="deals-panel">
+        <div class="analytics-grid">
+            <div class="kpi-card accent-success">
+                <div class="kpi-value" id="dealsCount">--</div>
+                <div class="kpi-label">Deals Found</div>
+            </div>
+            <div class="kpi-card accent-primary">
+                <div class="kpi-value" id="dealsAvgDiscount">--</div>
+                <div class="kpi-label">Avg Discount</div>
+            </div>
+            <div class="kpi-card accent-info">
+                <div class="kpi-value" id="dealsBestDiscount">--</div>
+                <div class="kpi-label">Best Deal</div>
+            </div>
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-card-header">Price Distribution</div>
+                <div class="chart-card-body" id="priceDistChart">
+                    <div class="loading"><div class="spinner"></div>Loading...</div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-card-header">Cheapest vs Expensive Neighborhoods</div>
+                <div class="chart-card-body" id="neighborhoodCompareChart">
+                    <div class="loading"><div class="spinner"></div>Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Best Deals - Below Neighborhood Average</h2>
+                <div class="filter-toolbar">
+                    <select id="dealsCityFilter" onchange="loadDeals()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <option value="">All Cities</option>
+                    </select>
+                    <select id="dealsDiscountFilter" onchange="loadDeals()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <option value="10">10%+ below avg</option>
+                        <option value="15" selected>15%+ below avg</option>
+                        <option value="20">20%+ below avg</option>
+                        <option value="25">25%+ below avg</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Price</th>
+                            <th>Area Avg</th>
+                            <th>Discount</th>
+                            <th>Sqm</th>
+                            <th>Type</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dealsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Favorites Panel -->
     <div class="panel" id="favorites-panel">
         <div class="card">
@@ -1330,7 +1401,7 @@ async function api(endpoint, params = {}) {
 
 async function loadAll() {
     try {
-        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus()]);
+        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus(), loadDeals(), loadMarketSummary()]);
         const failed = results.filter(r => r.status === 'rejected');
         if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
         document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
@@ -1976,6 +2047,123 @@ function renderLatestDrops(drops) {
             <span style="color:var(--success);font-size:0.625rem;">${d.price_diff_percent}%</span>
         </div>
     `).join('')}</div>`;
+}
+
+// ─── DEALS & MARKET SUMMARY ─────────────────────────────────────────────────
+
+async function loadDeals() {
+    const city = document.getElementById('dealsCityFilter')?.value || '';
+    const discount = document.getElementById('dealsDiscountFilter')?.value || '15';
+    const tbody = document.getElementById('dealsBody');
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><div class="loading"><div class="spinner"></div>Loading...</div></td></tr>';
+
+    try {
+        const params = { min_discount: discount, limit: 100 };
+        if (city) params.city = city;
+        const d = await api('/analytics/deals', params);
+        document.getElementById('dealsBadge').textContent = fmtN(d.count);
+        document.getElementById('dealsCount').textContent = fmtN(d.count);
+
+        if (d.deals.length) {
+            const avgDisc = Math.round(d.deals.reduce((s, dl) => s + dl.discount_pct, 0) / d.deals.length);
+            document.getElementById('dealsAvgDiscount').textContent = `${avgDisc}%`;
+            document.getElementById('dealsBestDiscount').textContent = `${Math.round(d.deals[0].discount_pct)}%`;
+        }
+
+        if (!d.deals.length) {
+            tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No deals found. Try lowering the discount threshold.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = d.deals.map(dl => {
+            const isFav = favorites.has(dl.id);
+            return `
+            <tr>
+                <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${dl.id}" onclick="toggleFavorite(event,'${dl.id}')">&#9733;</span></td>
+                <td>${dl.city || '-'}</td>
+                <td>${dl.neighborhood || '-'}</td>
+                <td>${dl.street || '-'}</td>
+                <td>${dl.rooms || '-'}</td>
+                <td><strong style="color:var(--success)">&#8362;${fmtP(dl.price_numeric)}</strong></td>
+                <td style="color:var(--gray-400);text-decoration:line-through;">&#8362;${fmtP(dl.area_avg)}</td>
+                <td><span class="badge badge-success">-${Math.round(dl.discount_pct)}%</span></td>
+                <td>${dl.size_sqm || '-'}</td>
+                <td>${dl.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+                <td><a href="https://www.yad2.co.il/item/${dl.link_token || dl.id}" target="_blank">View</a></td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadMarketSummary() {
+    try {
+        const d = await api('/analytics/market-summary');
+        const ov = d.overview || {};
+
+        // Populate deals city filter
+        const sel = document.getElementById('dealsCityFilter');
+        if (sel && sel.options.length <= 1) {
+            try {
+                const cities = await api('/cities');
+                sel.innerHTML = '<option value="">All Cities</option>' +
+                    cities.cities.map(c => `<option value="${c.city}">${c.city}</option>`).join('');
+            } catch (e) {}
+        }
+
+        // Price distribution chart
+        renderPriceDistribution(d.price_distribution || []);
+
+        // Neighborhood comparison
+        renderNeighborhoodCompare(d.cheapest_neighborhoods || [], d.most_expensive_neighborhoods || []);
+    } catch (e) {
+        console.error('Market summary error:', e);
+    }
+}
+
+function renderPriceDistribution(dist) {
+    const el = document.getElementById('priceDistChart');
+    if (!dist.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+    const max = Math.max(...dist.map(d => d.count));
+    el.innerHTML = `<div class="bar-chart">${dist.map((d, i) => `
+        <div class="bar-row">
+            <div class="bar-label">${d.bucket}</div>
+            <div class="bar-track">
+                <div class="bar-fill" style="width:${(d.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
+                    <span>${fmtN(d.count)}</span>
+                </div>
+            </div>
+        </div>
+    `).join('')}</div>`;
+}
+
+function renderNeighborhoodCompare(cheapest, expensive) {
+    const el = document.getElementById('neighborhoodCompareChart');
+    if (!cheapest.length && !expensive.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+
+    el.innerHTML = `
+        <div style="display:flex;gap:1rem;">
+            <div style="flex:1;">
+                <div style="font-size:0.6875rem;font-weight:600;color:var(--success);margin-bottom:0.5rem;">Cheapest</div>
+                ${cheapest.map(n => `
+                    <div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.25rem 0;border-bottom:1px solid var(--gray-100);">
+                        <span style="color:var(--gray-600);">${n.neighborhood}, ${n.city}</span>
+                        <span style="font-weight:600;color:var(--success);">&#8362;${fmtP(n.avg_price)}</span>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="flex:1;">
+                <div style="font-size:0.6875rem;font-weight:600;color:var(--danger);margin-bottom:0.5rem;">Most Expensive</div>
+                ${expensive.map(n => `
+                    <div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.25rem 0;border-bottom:1px solid var(--gray-100);">
+                        <span style="color:var(--gray-600);">${n.neighborhood}, ${n.city}</span>
+                        <span style="font-weight:600;color:var(--danger);">&#8362;${fmtP(n.avg_price)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
 }
 
 // ─── SORTING ────────────────────────────────────────────────────────────────

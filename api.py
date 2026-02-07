@@ -107,6 +107,8 @@ def index():
             "/analytics/neighborhoods": "GET - Price analytics per neighborhood",
             "/analytics/price-map": "GET - Listings with coordinates for map",
             "/analytics/trends": "GET - Daily price trends over time",
+            "/analytics/deals": "GET - Find listings priced below neighborhood average",
+            "/analytics/market-summary": "GET - High-level market overview with price distribution",
             "/health": "GET - Health check"
         }
     })
@@ -768,6 +770,156 @@ def telegram_test():
         return jsonify({"success": True, "message": "Test message sent"})
     except Exception:
         return jsonify({"error": "Failed to send Telegram message. Check bot token and chat ID."}), 500
+
+
+@app.route("/analytics/deals")
+def deals_finder():
+    """Find listings priced significantly below their neighborhood average."""
+    city = request.args.get("city")
+    min_discount = request.args.get("min_discount", 15, type=int)  # minimum % below avg
+    min_listings_in_area = request.args.get("min_listings", 5, type=int)
+    limit = min(request.args.get("limit", 50, type=int), 200)
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        conditions = [
+            "l.is_active = TRUE",
+            "l.price_numeric > 0",
+            "l.neighborhood IS NOT NULL"
+        ]
+        params = []
+
+        if city:
+            conditions.append("l.city ILIKE %s")
+            params.append(f"%{city}%")
+
+        where = " AND ".join(conditions)
+
+        cur.execute(f"""
+            WITH neighborhood_stats AS (
+                SELECT city, neighborhood,
+                    AVG(price_numeric) as avg_price,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric) as median_price,
+                    COUNT(*) as area_count
+                FROM listings
+                WHERE is_active = TRUE AND price_numeric > 0 AND neighborhood IS NOT NULL
+                    {('AND city ILIKE %s' if city else '')}
+                GROUP BY city, neighborhood
+                HAVING COUNT(*) >= %s
+            )
+            SELECT
+                l.id, l.link_token, l.city, l.neighborhood, l.street,
+                l.rooms, l.price_numeric, l.size_sqm, l.floor,
+                l.image_url, l.is_merchant, l.first_seen_at,
+                ns.avg_price::int as area_avg,
+                ns.median_price::int as area_median,
+                ns.area_count,
+                ROUND((1 - l.price_numeric::float / ns.avg_price) * 100, 1) as discount_pct
+            FROM listings l
+            JOIN neighborhood_stats ns ON l.city = ns.city AND l.neighborhood = ns.neighborhood
+            WHERE {where}
+                AND l.price_numeric < ns.avg_price * (1 - %s / 100.0)
+            ORDER BY discount_pct DESC
+            LIMIT %s
+        """, (params + [params[0]] if city else []) + [min_listings_in_area] + params + [min_discount, limit])
+
+        deals = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify({
+        "count": len(deals),
+        "min_discount": min_discount,
+        "deals": deals
+    })
+
+
+@app.route("/analytics/market-summary")
+def market_summary():
+    """Get a high-level market summary with key metrics and recent activity."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # New listings in last 24h / 7d
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE first_seen_at > NOW() - INTERVAL '24 hours') as new_24h,
+                COUNT(*) FILTER (WHERE first_seen_at > NOW() - INTERVAL '7 days') as new_7d,
+                COUNT(*) FILTER (WHERE is_active = FALSE AND last_seen_at > NOW() - INTERVAL '7 days') as removed_7d,
+                COUNT(*) FILTER (WHERE is_active = TRUE) as active_total,
+                ROUND(AVG(price_numeric) FILTER (WHERE is_active = TRUE AND price_numeric > 0))::int as avg_price_all,
+                ROUND(AVG(price_numeric) FILTER (WHERE is_active = TRUE AND price_numeric > 0 AND first_seen_at > NOW() - INTERVAL '7 days'))::int as avg_price_new
+            FROM listings
+        """)
+        overview = dict(cur.fetchone())
+
+        # Price distribution buckets
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN price_numeric < 2000 THEN '0-2K'
+                    WHEN price_numeric < 3000 THEN '2-3K'
+                    WHEN price_numeric < 4000 THEN '3-4K'
+                    WHEN price_numeric < 5000 THEN '4-5K'
+                    WHEN price_numeric < 6000 THEN '5-6K'
+                    WHEN price_numeric < 8000 THEN '6-8K'
+                    WHEN price_numeric < 10000 THEN '8-10K'
+                    ELSE '10K+'
+                END as bucket,
+                COUNT(*) as count
+            FROM listings
+            WHERE is_active = TRUE AND price_numeric > 0
+            GROUP BY bucket
+            ORDER BY MIN(price_numeric)
+        """)
+        price_dist = [dict(r) for r in cur.fetchall()]
+
+        # Top 5 cheapest neighborhoods (min 5 listings)
+        cur.execute("""
+            SELECT city, neighborhood,
+                ROUND(AVG(price_numeric))::int as avg_price,
+                COUNT(*) as count
+            FROM listings
+            WHERE is_active = TRUE AND price_numeric > 0 AND neighborhood IS NOT NULL
+            GROUP BY city, neighborhood
+            HAVING COUNT(*) >= 5
+            ORDER BY avg_price ASC
+            LIMIT 5
+        """)
+        cheapest = [dict(r) for r in cur.fetchall()]
+
+        # Top 5 most expensive neighborhoods
+        cur.execute("""
+            SELECT city, neighborhood,
+                ROUND(AVG(price_numeric))::int as avg_price,
+                COUNT(*) as count
+            FROM listings
+            WHERE is_active = TRUE AND price_numeric > 0 AND neighborhood IS NOT NULL
+            GROUP BY city, neighborhood
+            HAVING COUNT(*) >= 5
+            ORDER BY avg_price DESC
+            LIMIT 5
+        """)
+        expensive = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify({
+        "overview": overview,
+        "price_distribution": price_dist,
+        "cheapest_neighborhoods": cheapest,
+        "most_expensive_neighborhoods": expensive
+    })
 
 
 if __name__ == "__main__":
