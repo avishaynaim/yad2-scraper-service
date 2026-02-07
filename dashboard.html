@@ -770,6 +770,11 @@
             .analytics-grid { grid-template-columns: 1fr; }
             .kpi-value { font-size: 1.25rem; }
         }
+
+        /* Favorites */
+        .fav-star { cursor: pointer; font-size: 1rem; opacity: 0.3; transition: var(--transition); user-select: none; }
+        .fav-star:hover { opacity: 0.7; }
+        .fav-star.active { opacity: 1; color: #f59e0b; }
     </style>
 </head>
 <body>
@@ -814,6 +819,7 @@
         <button class="tab" data-tab="listings">Listings<span class="tab-badge" id="listingsBadge">0</span></button>
         <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
         <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
+        <button class="tab" data-tab="favorites">Favorites<span class="tab-badge" id="favoritesBadge">0</span></button>
         <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
     </div>
 
@@ -915,6 +921,7 @@
                 <table id="listingsTable">
                     <thead>
                         <tr>
+                            <th style="width:30px;"></th>
                             <th>
                                 <div class="th-content">
                                     <div class="th-label" onclick="sortListings('city')">City <span class="sort-icon" data-sort="city">&#9650;</span></div>
@@ -1105,6 +1112,36 @@
         </div>
     </div>
 
+    <!-- Favorites Panel -->
+    <div class="panel" id="favorites-panel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Bookmarked Listings</h2>
+                <button class="preset-btn" onclick="clearFavorites()">Clear All</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Price</th>
+                            <th>Sqm</th>
+                            <th>Price/sqm</th>
+                            <th>Type</th>
+                            <th>Added</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="favoritesBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Runs Panel -->
     <div class="panel" id="runs-panel">
         <div class="card">
@@ -1200,6 +1237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTabs();
         initRangeFilters();
         renderPresets();
+        document.getElementById('favoritesBadge').textContent = favorites.size;
     } catch (e) {
         console.error('Init error:', e);
     }
@@ -1291,6 +1329,7 @@ async function loadListings() {
         document.getElementById('listingsBadge').textContent = fmtN(d.total);
         buildFilters('listings');
         filterAndRender('listings');
+        renderFavorites();
     } catch (e) {
         document.getElementById('listingsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
     }
@@ -1690,14 +1729,16 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="empty-state">No listings found</td></tr>';
         return;
     }
 
     tbody.innerHTML = listings.map((l, idx) => {
         const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+        const isFav = favorites.has(l.id);
         return `
         <tr style="cursor:pointer" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
+            <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
             <td>${l.street || '-'}</td>
@@ -2110,6 +2151,70 @@ function showListingDetail(idx) {
         </div>
     `;
     document.getElementById('detailModal').classList.add('active');
+}
+
+// ─── FAVORITES ──────────────────────────────────────────────────────────────
+
+const favorites = new Set(JSON.parse(localStorage.getItem('yad2_favorites') || '[]'));
+
+function saveFavorites() {
+    localStorage.setItem('yad2_favorites', JSON.stringify([...favorites]));
+    document.getElementById('favoritesBadge').textContent = favorites.size;
+}
+
+function toggleFavorite(e, id) {
+    e.stopPropagation();
+    if (favorites.has(id)) {
+        favorites.delete(id);
+    } else {
+        favorites.add(id);
+    }
+    saveFavorites();
+    // Update star in listings table
+    document.querySelectorAll(`.fav-star[data-id="${id}"]`).forEach(s => {
+        s.classList.toggle('active', favorites.has(id));
+    });
+    // Re-render favorites if on that tab
+    renderFavorites();
+}
+
+function renderFavorites() {
+    const tbody = document.getElementById('favoritesBody');
+    if (!favorites.size) {
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No bookmarked listings. Click the star on any listing to bookmark it.</td></tr>';
+        return;
+    }
+
+    const favListings = S.listings.allData.filter(l => favorites.has(l.id));
+    if (!favListings.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Bookmarked listings not loaded yet. Switch to Listings tab first.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = favListings.map(l => {
+        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+        return `
+        <tr>
+            <td><span class="fav-star active" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
+            <td>${l.city || '-'}</td>
+            <td>${l.neighborhood || '-'}</td>
+            <td>${l.street || '-'}</td>
+            <td>${l.rooms || '-'}</td>
+            <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
+            <td>${l.size_sqm || '-'}</td>
+            <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
+            <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+            <td>${fmtD(l.first_seen_at)}</td>
+            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+        </tr>`;
+    }).join('');
+}
+
+function clearFavorites() {
+    favorites.clear();
+    saveFavorites();
+    renderFavorites();
+    toast('Favorites cleared');
 }
 
 // ─── ANALYTICS SORTING ──────────────────────────────────────────────────────
