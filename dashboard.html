@@ -1002,6 +1002,7 @@
             </div>
             <div class="active-filters-bar">
                 <div class="active-filters" id="activeFiltersChips"></div>
+                <div id="listingsFilterStats" style="padding:0 1.25rem;"></div>
             </div>
             <div class="table-container">
                 <table id="listingsTable">
@@ -2036,6 +2037,7 @@ function filterListings() {
     renderPagination('listings', data.length);
     renderActiveChips();
     updateSortIcons();
+    renderFilterStats(data);
 }
 
 function renderListingsTable(listings) {
@@ -2557,6 +2559,20 @@ function renderActiveChips() {
             <span class="filter-chip-remove" onclick="removeFilter('${c.col}','${c.type}')">&#215;</span>
         </span>
     `).join('') + `<button class="clear-all-btn" onclick="clearAllFilters()">Clear all</button>`;
+}
+
+function renderFilterStats(data) {
+    const el = document.getElementById('listingsFilterStats');
+    if (!el) return;
+    if (!data.length) { el.innerHTML = ''; return; }
+    const prices = data.map(d => d.price_numeric).filter(Boolean);
+    const avg = prices.length ? Math.round(prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+    const min = prices.length ? Math.min(...prices) : 0;
+    const max = prices.length ? Math.max(...prices) : 0;
+    const cities = new Set(data.map(d => d.city).filter(Boolean)).size;
+    const hasFilters = Object.values(S.listings.filters).some(v => v && (Array.isArray(v) ? v.length : v));
+    if (!hasFilters && !document.getElementById('listingsSearch')?.value) { el.innerHTML = ''; return; }
+    el.innerHTML = `<span style="font-size:0.6875rem;color:var(--gray-500);">${fmtN(data.length)} listings | ${cities} cities | Avg &#8362;${fmtP(avg)} | Min &#8362;${fmtP(min)} | Max &#8362;${fmtP(max)}</span>`;
 }
 
 function colName(col) {

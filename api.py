@@ -601,9 +601,9 @@ def neighborhood_analytics():
                 ROUND(AVG(price_numeric))::int as avg_price,
                 MIN(price_numeric) as min_price,
                 MAX(price_numeric) as max_price,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)::int as median_price,
+                (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric))::int as median_price,
                 ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
-                    THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                    THEN price_numeric::numeric / size_sqm::int END))::int as avg_price_per_sqm,
                 ROUND(AVG(CASE WHEN rooms ~ '^[0-9.]+$' THEN rooms::numeric END), 1) as avg_rooms
             FROM listings
             WHERE {where}
@@ -969,9 +969,9 @@ def compare_neighborhoods():
                     ROUND(AVG(price_numeric))::int as avg_price,
                     MIN(price_numeric) as min_price,
                     MAX(price_numeric) as max_price,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)::int as median_price,
+                    (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric))::int as median_price,
                     ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
-                        THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                        THEN price_numeric::numeric / size_sqm::int END))::int as avg_price_per_sqm,
                     ROUND(AVG(CASE WHEN rooms ~ '^[0-9.]+$' THEN rooms::numeric END), 1) as avg_rooms,
                     ROUND(AVG(CASE WHEN size_sqm ~ '^[0-9]+$' THEN size_sqm::int END))::int as avg_sqm,
                     COUNT(*) FILTER (WHERE is_merchant) as agents,
