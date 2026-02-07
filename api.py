@@ -1023,11 +1023,9 @@ def city_stats(city_name):
                 ROUND(AVG(price_numeric) FILTER (WHERE is_active AND price_numeric > 0))::int as avg_price,
                 MIN(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as min_price,
                 MAX(price_numeric) FILTER (WHERE is_active AND price_numeric > 0) as max_price,
-                (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_numeric)
-                    FILTER (WHERE is_active AND price_numeric > 0))::int as median_price,
                 ROUND(AVG(CASE WHEN is_active AND rooms ~ '^[0-9.]+$' THEN rooms::numeric END), 1) as avg_rooms,
                 ROUND(AVG(CASE WHEN is_active AND size_sqm ~ '^[0-9]+$' AND size_sqm::int > 0
-                    THEN price_numeric::float / size_sqm::int END))::int as avg_price_per_sqm,
+                    THEN price_numeric::numeric / size_sqm::int END))::int as avg_price_per_sqm,
                 COUNT(*) FILTER (WHERE is_active AND is_merchant) as agent_listings,
                 COUNT(*) FILTER (WHERE is_active AND NOT is_merchant) as private_listings,
                 COUNT(*) FILTER (WHERE first_seen_at > NOW() - INTERVAL '24 hours') as new_24h,
@@ -1090,6 +1088,9 @@ def city_stats(city_name):
         result["price_distribution"] = [dict(r) for r in cur.fetchall()]
 
         cur.close()
+    except Exception as e:
+        logging.error(f"City stats error: {e}")
+        return jsonify({"error": "Failed to load city stats"}), 500
     finally:
         if conn:
             put_db(conn)
