@@ -847,7 +847,8 @@
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.75rem;">
-            <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle">Dark</button>
+            <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle" title="Toggle dark mode">Dark</button>
+            <span class="dark-toggle" style="cursor:help;font-size:0.625rem;" title="Keys: 1-7 switch tabs, R to refresh">?</span>
             <div>
                 <div class="last-update" id="lastUpdate">Loading...</div>
                 <div class="refresh-countdown" id="refreshCountdown"></div>
@@ -1177,12 +1178,13 @@
                 <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
                     <div style="flex:1;min-width:150px;">
                         <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 1</label>
-                        <input type="text" id="compareN1" placeholder="e.g. Florentin" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <input type="text" id="compareN1" list="neighborhoodList" placeholder="e.g. Florentin" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                     </div>
                     <div style="flex:1;min-width:150px;">
                         <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 2</label>
-                        <input type="text" id="compareN2" placeholder="e.g. Neve Tzedek" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <input type="text" id="compareN2" list="neighborhoodList" placeholder="e.g. Neve Tzedek" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                     </div>
+                    <datalist id="neighborhoodList"></datalist>
                     <div style="display:flex;align-items:flex-end;">
                         <button class="btn btn-primary" onclick="compareNeighborhoods()">Compare</button>
                     </div>
@@ -1397,6 +1399,22 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', e => {
         if (!e.target.closest('.multi-select')) closeAllDD();
     });
+
+    // Keyboard shortcuts for tab navigation
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        const tabs = document.querySelectorAll('.tab');
+        const num = parseInt(e.key);
+        if (num >= 1 && num <= tabs.length) {
+            tabs[num - 1].click();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        // 'r' to refresh
+        if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+            loadAll();
+            toast('Refreshing...');
+        }
+    });
 });
 
 function initTabs() {
@@ -1406,6 +1424,7 @@ function initTabs() {
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById(`${tab.dataset.tab}-panel`).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     });
 }
@@ -1664,6 +1683,14 @@ async function loadNeighborhoodAnalytics() {
 
         analyticsData = d.neighborhoods;
         renderAnalyticsBody();
+
+        // Populate neighborhood autocomplete
+        const datalist = document.getElementById('neighborhoodList');
+        if (datalist) {
+            datalist.innerHTML = d.neighborhoods.map(n =>
+                `<option value="${n.neighborhood}">${n.neighborhood} - ${n.city} (${n.listings_count})</option>`
+            ).join('');
+        }
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Error: ${e.message}</td></tr>`;
     }
