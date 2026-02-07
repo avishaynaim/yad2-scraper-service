@@ -751,6 +751,37 @@
 
         .toast.visible { transform: translateX(-50%) translateY(0); }
 
+        /* Status badge styles */
+        .status-active { color: var(--success); }
+        .status-inactive { color: var(--gray-400); }
+
+        /* Listing row highlight for new listings */
+        tr.listing-new { background: rgba(5, 150, 105, 0.05); }
+        tr.listing-new:hover { background: rgba(5, 150, 105, 0.1); }
+
+        /* Sticky first column for mobile */
+        .table-container table th:first-child,
+        .table-container table td:first-child { position: sticky; right: 0; z-index: 5; background: inherit; }
+
+        /* Smooth transitions for sort */
+        tbody tr { transition: background var(--transition), opacity 0.2s ease; }
+
+        /* Better scroll indicator */
+        .table-container { position: relative; }
+        .table-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 20px;
+            height: 100%;
+            background: linear-gradient(to left, transparent, rgba(0,0,0,0.03));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .table-container.scrolled::after { opacity: 1; }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header-content { flex-direction: column; gap: 0.5rem; }
@@ -1428,6 +1459,15 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Back to top button -->
+<button id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" style="
+    position:fixed;bottom:2rem;left:2rem;width:40px;height:40px;
+    border-radius:50%;background:var(--primary);color:white;border:none;
+    box-shadow:var(--shadow-md);cursor:pointer;font-size:1.25rem;
+    display:none;z-index:999;transition:opacity 0.3s,transform 0.3s;
+    opacity:0.8;
+" title="Back to top">&#8593;</button>
+
 <script>
 const API_BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
     ? 'http://localhost:8000' : location.origin;
@@ -1479,6 +1519,12 @@ document.addEventListener('DOMContentLoaded', () => {
     startCountdown();
     document.addEventListener('click', e => {
         if (!e.target.closest('.multi-select')) closeAllDD();
+    });
+
+    // Back to top button visibility
+    const btt = document.getElementById('backToTop');
+    window.addEventListener('scroll', () => {
+        btt.style.display = window.scrollY > 400 ? 'block' : 'none';
     });
 
     // Keyboard shortcuts for tab navigation
@@ -1535,6 +1581,7 @@ async function api(endpoint, params = {}) {
 }
 
 async function loadAll() {
+    countdownSec = AUTO_REFRESH_MS / 1000;
     try {
         const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus(), loadDeals(), loadMarketSummary(), loadMapData()]);
         const failed = results.filter(r => r.status === 'rejected');
@@ -1998,8 +2045,9 @@ function renderListingsTable(listings) {
         const ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : null;
         const isFav = favorites.has(l.id);
         const img = l.image_url ? `<img class="listing-thumb" src="${l.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
+        const isNew24h = l.first_seen_at && (Date.now() - new Date(l.first_seen_at).getTime()) < 86400000;
         return `
-        <tr style="cursor:pointer" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
+        <tr style="cursor:pointer" class="${isNew24h ? 'listing-new' : ''}" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td>${img}</td>
             <td>${l.city || '-'}</td>
@@ -2063,7 +2111,7 @@ function renderPriceChangesTable(changes) {
                 <td class="${cls}">&#8362;${fmtP(Math.abs(c.price_diff))}</td>
                 <td class="${cls}">${c.price_diff_percent}%</td>
                 <td>${fmtDT(c.recorded_at)}</td>
-                <td><a href="https://www.yad2.co.il/item/${c.listing_id}" target="_blank">View</a></td>
+                <td><a href="https://www.yad2.co.il/item/${c.link_token || c.listing_id}" target="_blank">View</a></td>
             </tr>
         `;
     }).join('');
@@ -2583,7 +2631,8 @@ function showListingDetail(idx) {
     const l = S.listings.data[idx];
     if (!l) return;
 
-    const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+    const sqmVal = parseInt(l.size_sqm);
+    const ppsqm = (l.price_numeric && sqmVal > 0) ? Math.round(l.price_numeric / sqmVal) : null;
     const link = `https://www.yad2.co.il/item/${l.link_token || l.id}`;
 
     const amenities = l.amenities || {};
@@ -2663,7 +2712,8 @@ function renderFavorites() {
     }
 
     tbody.innerHTML = favListings.map(l => {
-        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+        const sqmVal = parseInt(l.size_sqm);
+        const ppsqm = (l.price_numeric && sqmVal > 0) ? Math.round(l.price_numeric / sqmVal) : null;
         return `
         <tr>
             <td><span class="fav-star active" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
