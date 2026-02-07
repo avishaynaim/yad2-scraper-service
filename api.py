@@ -673,6 +673,47 @@ def price_trends():
     })
 
 
+# ─── TELEGRAM CONFIG ─────────────────────────────────────────────────────────
+
+@app.route("/telegram/status")
+def telegram_status():
+    """Check if Telegram notifications are configured."""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    min_drop = os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5")
+    return jsonify({
+        "configured": bool(bot_token and chat_id),
+        "chat_id": chat_id[:4] + "..." if chat_id and len(chat_id) > 4 else None,
+        "min_drop_percent": float(min_drop)
+    })
+
+
+@app.route("/telegram/test", methods=["POST"])
+def telegram_test():
+    """Send a test Telegram message."""
+    import urllib.request
+    import urllib.parse
+
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    if not bot_token or not chat_id:
+        return jsonify({"error": "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars not set"}), 400
+
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        data = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": "Yad2 Scraper: Test notification - Telegram is configured correctly!",
+            "parse_mode": "HTML"
+        }).encode()
+        req = urllib.request.Request(url, data=data)
+        resp = urllib.request.urlopen(req, timeout=10)
+        return jsonify({"success": True, "message": "Test message sent"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)

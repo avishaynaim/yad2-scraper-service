@@ -19,6 +19,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+import urllib.request
+import urllib.parse
+
 import psycopg2
 from psycopg2.extras import execute_values
 from curl_cffi import requests as curl_requests
@@ -33,6 +36,11 @@ DELAY_BETWEEN_BATCHES = (12, 25)
 MAX_RETRIES = 3
 SMART_STOP_THRESHOLD = int(os.environ.get("SMART_STOP_THRESHOLD", "10"))
 FULL_SCRAPE_EVERY = int(os.environ.get("FULL_SCRAPE_EVERY", "6"))
+
+# Telegram notifications (optional)
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))  # minimum % drop to notify
 
 # Logging
 logging.basicConfig(
@@ -295,6 +303,62 @@ def update_scrape_progress(run_id: int, pages_scraped: int, pages_failed: int,
     conn.close()
 
 
+# ─── TELEGRAM NOTIFICATIONS ─────────────────────────────────────────────────────
+
+def send_telegram(message: str):
+    """Send a message via Telegram bot. Silent no-op if not configured."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = urllib.parse.urlencode({
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true"
+        }).encode()
+        req = urllib.request.Request(url, data=data)
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        logger.warning(f"Telegram send failed: {e}")
+
+
+def notify_price_drop(listing_id: str, city: str, neighborhood: str, street: str,
+                      old_price: int, new_price: int, rooms: str, link_token: str):
+    """Send Telegram notification for a significant price drop."""
+    drop = old_price - new_price
+    if old_price == 0:
+        return
+    pct = round(drop / old_price * 100, 1)
+    if pct < TELEGRAM_MIN_DROP_PERCENT:
+        return
+
+    link = f"https://www.yad2.co.il/item/{link_token or listing_id}"
+    location = ", ".join(filter(None, [city, neighborhood, street]))
+    msg = (
+        f"<b>Price Drop {pct}%</b>\n"
+        f"{location}\n"
+        f"{rooms or '?'} rooms\n"
+        f"{old_price:,} -> <b>{new_price:,}</b> (-{drop:,})\n"
+        f"<a href=\"{link}\">View on Yad2</a>"
+    )
+    send_telegram(msg)
+
+
+def notify_scrape_summary(run_id: int, run_type: str, pages: int, total_pages: int,
+                          new_count: int, updated: int, price_changes: int, duration_min: int):
+    """Send a summary after each scrape completes."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    msg = (
+        f"<b>Scrape #{run_id} Complete</b>\n"
+        f"Type: {run_type} | Pages: {pages}/{total_pages}\n"
+        f"New: {new_count} | Updated: {updated} | Price changes: {price_changes}\n"
+        f"Duration: {duration_min}m"
+    )
+    send_telegram(msg)
+
+
 # ─── LISTINGS DB ────────────────────────────────────────────────────────────────
 
 def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
@@ -350,6 +414,18 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                 """, (listing["id"], price_str, price_numeric, now, run_id))
                 price_changes += 1
                 logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
+
+                # Notify on price drops
+                if price_numeric < old_price:
+                    notify_price_drop(
+                        listing["id"],
+                        listing.get("city", ""),
+                        listing.get("neighborhood", ""),
+                        listing.get("street", ""),
+                        old_price, price_numeric,
+                        listing.get("rooms", ""),
+                        listing.get("link_token", "")
+                    )
 
             # Update existing
             cur.execute("""
@@ -503,6 +579,43 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
     conn.commit()
     cur.close()
     conn.close()
+
+    # Send Telegram summary on completion
+    if status == "completed":
+        try:
+            # Estimate duration from started_at
+            cur2 = None
+            conn2 = get_db_connection()
+            try:
+                cur2 = conn2.cursor()
+                cur2.execute("SELECT started_at, finished_at FROM scrape_runs WHERE id = %s", (run_id,))
+                row = cur2.fetchone()
+                if row and row[0] and row[1]:
+                    dur = int((row[1] - row[0]).total_seconds() / 60)
+                else:
+                    dur = 0
+            finally:
+                if cur2:
+                    cur2.close()
+                conn2.close()
+
+            # Determine run type
+            run_type = "full"
+            conn3 = get_db_connection()
+            try:
+                cur3 = conn3.cursor()
+                cur3.execute("SELECT run_type FROM scrape_runs WHERE id = %s", (run_id,))
+                rt_row = cur3.fetchone()
+                if rt_row and rt_row[0]:
+                    run_type = rt_row[0]
+                cur3.close()
+            finally:
+                conn3.close()
+
+            notify_scrape_summary(run_id, run_type, pages_scraped, total_pages,
+                                  listings_new, listings_updated, price_changes, dur)
+        except Exception as e:
+            logger.warning(f"Telegram summary failed: {e}")
 
 
 # ─── SCRAPER ────────────────────────────────────────────────────────────────────

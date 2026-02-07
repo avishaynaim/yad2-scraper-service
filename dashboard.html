@@ -831,6 +831,20 @@
                 <div class="chart-card-body" id="latestDropsChart"></div>
             </div>
         </div>
+
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header">
+                <h2 class="card-title">Telegram Notifications</h2>
+                <button class="preset-btn" onclick="testTelegram()" id="telegramTestBtn">Send Test</button>
+            </div>
+            <div style="padding:1rem 1.25rem;">
+                <div id="telegramStatus" style="font-size:0.8125rem;color:var(--gray-600);">Checking...</div>
+                <p style="font-size:0.75rem;color:var(--gray-400);margin-top:0.5rem;">
+                    Set <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> env vars in Railway to receive price drop alerts.
+                    Adjust <code>TELEGRAM_MIN_DROP_PERCENT</code> (default: 5%) for sensitivity.
+                </p>
+            </div>
+        </div>
     </div>
 
     <!-- Listings Panel -->
@@ -1145,7 +1159,7 @@ async function api(endpoint, params = {}) {
 
 async function loadAll() {
     try {
-        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities()]);
+        const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus()]);
         const failed = results.filter(r => r.status === 'rejected');
         if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
         document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
@@ -1227,6 +1241,45 @@ async function loadRuns() {
         renderRecentRuns(d.runs.slice(0, 8));
     } catch (e) {
         document.getElementById('runsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+    }
+}
+
+// ─── TELEGRAM ───────────────────────────────────────────────────────────────
+
+async function loadTelegramStatus() {
+    try {
+        const d = await api('/telegram/status');
+        const el = document.getElementById('telegramStatus');
+        if (d.configured) {
+            el.innerHTML = `<span class="badge badge-success">Configured</span> Chat: ${d.chat_id} | Min drop: ${d.min_drop_percent}%`;
+            document.getElementById('telegramTestBtn').style.display = '';
+        } else {
+            el.innerHTML = '<span class="badge badge-warning">Not configured</span> Set env vars to enable';
+            document.getElementById('telegramTestBtn').style.display = 'none';
+        }
+    } catch (e) {
+        document.getElementById('telegramStatus').textContent = 'Could not check status';
+    }
+}
+
+async function testTelegram() {
+    try {
+        const btn = document.getElementById('telegramTestBtn');
+        btn.textContent = 'Sending...';
+        btn.disabled = true;
+        const r = await fetch(`${API_BASE}/telegram/test`, { method: 'POST' });
+        const d = await r.json();
+        if (d.success) {
+            toast('Test message sent to Telegram!');
+        } else {
+            toast('Error: ' + (d.error || 'Unknown'));
+        }
+        btn.textContent = 'Send Test';
+        btn.disabled = false;
+    } catch (e) {
+        toast('Failed to send test: ' + e.message);
+        document.getElementById('telegramTestBtn').textContent = 'Send Test';
+        document.getElementById('telegramTestBtn').disabled = false;
     }
 }
 
