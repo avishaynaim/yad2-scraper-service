@@ -1206,6 +1206,32 @@
 
         <div class="card">
             <div class="card-header">
+                <h2 class="card-title">Price Drop Leaderboard</h2>
+                <span style="font-size:0.6875rem;color:var(--gray-400);">Neighborhoods with the most price drops (30 days)</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Drops</th>
+                            <th>Listings</th>
+                            <th>Avg Drop</th>
+                            <th>Avg %</th>
+                            <th>Biggest</th>
+                        </tr>
+                    </thead>
+                    <tbody id="priceDropBody">
+                        <tr><td colspan="7" class="empty-state"><div class="loading"><div class="spinner"></div>Loading...</div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="priceDropSummary" style="padding:0.75rem 1.25rem;font-size:0.6875rem;color:var(--gray-500);"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
                 <h2 class="card-title">Compare Neighborhoods</h2>
             </div>
             <div style="padding:1rem 1.25rem;">
@@ -1767,9 +1793,38 @@ async function loadAnalyticsCities() {
         const sel = document.getElementById('analyticsCityFilter');
         sel.innerHTML = '<option value="">All Cities</option>' +
             d.cities.map(c => `<option value="${c.city}">${c.city} (${c.listings_count})</option>`).join('');
-        await Promise.allSettled([loadNeighborhoodAnalytics(), loadPriceTrends()]);
+        await Promise.allSettled([loadNeighborhoodAnalytics(), loadPriceTrends(), loadPriceDropLeaderboard()]);
     } catch (e) {
         console.error('Analytics cities error:', e);
+    }
+}
+
+async function loadPriceDropLeaderboard() {
+    const tbody = document.getElementById('priceDropBody');
+    try {
+        const d = await api('/analytics/price-drops', { days: 30, min_drops: 2 });
+        const summary = d.summary || {};
+        document.getElementById('priceDropSummary').innerHTML =
+            `Total: ${fmtN(summary.total_drops || 0)} drops vs ${fmtN(summary.total_raises || 0)} raises in last 30 days`;
+
+        if (!d.neighborhoods.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No neighborhoods with 2+ price drops</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = d.neighborhoods.map(n => `
+            <tr onclick="filterByCity('${(n.city || '').replace(/'/g, "\\'")}')" style="cursor:pointer;">
+                <td>${n.city || '-'}</td>
+                <td>${n.neighborhood || '-'}</td>
+                <td><strong>${n.drop_count}</strong></td>
+                <td>${n.listings_affected}</td>
+                <td class="price-down">&#8362;${fmtP(n.avg_drop_amount)}</td>
+                <td class="price-down">${n.avg_drop_pct}%</td>
+                <td class="price-down">&#8362;${fmtP(n.biggest_drop)}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 

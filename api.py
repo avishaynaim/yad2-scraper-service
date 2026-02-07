@@ -109,6 +109,8 @@ def index():
             "/analytics/market-summary": "GET - High-level market overview with price distribution",
             "/analytics/city/<name>": "GET - Detailed stats for a specific city",
             "/analytics/compare": "GET - Compare two neighborhoods side by side",
+            "/analytics/stale": "GET - Find longest-on-market listings",
+            "/analytics/price-drops": "GET - Neighborhoods with most price drops",
             "/health": "GET - Health check"
         }
     })
@@ -1165,6 +1167,88 @@ def city_stats(city_name):
             put_db(conn)
 
     return jsonify(result)
+
+
+@app.route("/analytics/price-drops")
+def price_drop_leaderboard():
+    """Neighborhoods with the most price drops — signals softening markets."""
+    days = max(1, min(request.args.get("days", 30, type=int), 365))
+    min_drops = request.args.get("min_drops", 2, type=int)
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            WITH drops AS (
+                SELECT
+                    ph.listing_id,
+                    l.city,
+                    l.neighborhood,
+                    ph.price_numeric as new_price,
+                    LAG(ph.price_numeric) OVER (
+                        PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                    ) as old_price,
+                    ph.recorded_at
+                FROM price_history ph
+                JOIN listings l ON l.id = ph.listing_id
+                WHERE ph.recorded_at > NOW() - make_interval(days => %s)
+            ),
+            actual_drops AS (
+                SELECT * FROM drops
+                WHERE old_price IS NOT NULL AND new_price < old_price
+            )
+            SELECT
+                city,
+                neighborhood,
+                COUNT(*) as drop_count,
+                COUNT(DISTINCT listing_id) as listings_affected,
+                ROUND(AVG(old_price - new_price))::int as avg_drop_amount,
+                ROUND(AVG((old_price - new_price)::numeric / NULLIF(old_price, 0) * 100), 1) as avg_drop_pct,
+                MAX(old_price - new_price) as biggest_drop
+            FROM actual_drops
+            WHERE neighborhood IS NOT NULL
+            GROUP BY city, neighborhood
+            HAVING COUNT(*) >= %s
+            ORDER BY drop_count DESC
+            LIMIT 30
+        """, (days, min_drops))
+
+        neighborhoods = [dict(r) for r in cur.fetchall()]
+
+        # Overall summary
+        cur.execute("""
+            WITH drops AS (
+                SELECT
+                    ph.price_numeric as new_price,
+                    LAG(ph.price_numeric) OVER (
+                        PARTITION BY ph.listing_id ORDER BY ph.recorded_at
+                    ) as old_price
+                FROM price_history ph
+                WHERE ph.recorded_at > NOW() - make_interval(days => %s)
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE old_price IS NOT NULL AND new_price < old_price) as total_drops,
+                COUNT(*) FILTER (WHERE old_price IS NOT NULL AND new_price > old_price) as total_raises
+            FROM drops
+        """, (days,))
+        summary = dict(cur.fetchone())
+
+        cur.close()
+    except Exception as e:
+        logging.error(f"Price drop leaderboard error: {e}")
+        return jsonify({"error": "Query failed"}), 500
+    finally:
+        if conn:
+            put_db(conn)
+
+    return jsonify({
+        "days": days,
+        "count": len(neighborhoods),
+        "summary": summary,
+        "neighborhoods": neighborhoods
+    })
 
 
 if __name__ == "__main__":
