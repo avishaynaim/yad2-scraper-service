@@ -389,129 +389,129 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
         price_changes = 0
 
         for listing in listings:
-        # Parse price to numeric
-        price_numeric = None
-        price_str = listing.get("price", "")
-        if price_str:
-            try:
-                price_numeric = int(price_str.replace(",", "").replace("₪", "").replace(" ", ""))
-            except ValueError:
-                pass
+            # Parse price to numeric
+            price_numeric = None
+            price_str = listing.get("price", "")
+            if price_str:
+                try:
+                    price_numeric = int(price_str.replace(",", "").replace("₪", "").replace(" ", ""))
+                except ValueError:
+                    pass
 
-        # Parse date_added
-        date_added = None
-        date_str = listing.get("date_added", "")
-        if date_str:
-            try:
-                date_added = datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                pass
+            # Parse date_added
+            date_added = None
+            date_str = listing.get("date_added", "")
+            if date_str:
+                try:
+                    date_added = datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    pass
 
-        # Extract coordinates
-        coords = listing.get("coordinates", {})
-        lat = coords.get("latitude") if coords else None
-        lon = coords.get("longitude") if coords else None
+            # Extract coordinates
+            coords = listing.get("coordinates", {})
+            lat = coords.get("latitude") if coords else None
+            lon = coords.get("longitude") if coords else None
 
-        # Check if exists and get current price
-        cur.execute("SELECT id, price_numeric FROM listings WHERE id = %s", (listing["id"],))
-        existing = cur.fetchone()
+            # Check if exists and get current price
+            cur.execute("SELECT id, price_numeric FROM listings WHERE id = %s", (listing["id"],))
+            existing = cur.fetchone()
 
-        if existing:
-            old_price = existing[1]
+            if existing:
+                old_price = existing[1]
 
-            # Check if price changed
-            if price_numeric is not None and old_price is not None and price_numeric != old_price:
-                # Record price change in history
+                # Check if price changed
+                if price_numeric is not None and old_price is not None and price_numeric != old_price:
+                    # Record price change in history
+                    cur.execute("""
+                        INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (listing["id"], price_str, price_numeric, now, run_id))
+                    price_changes += 1
+                    logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
+
+                    # Notify on price drops
+                    if price_numeric < old_price:
+                        notify_price_drop(
+                            listing["id"],
+                            listing.get("city", ""),
+                            listing.get("neighborhood", ""),
+                            listing.get("street", ""),
+                            old_price, price_numeric,
+                            listing.get("rooms", ""),
+                            listing.get("link_token", "")
+                        )
+
+                # Update existing
                 cur.execute("""
-                    INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (listing["id"], price_str, price_numeric, now, run_id))
-                price_changes += 1
-                logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
-
-                # Notify on price drops
-                if price_numeric < old_price:
-                    notify_price_drop(
-                        listing["id"],
-                        listing.get("city", ""),
-                        listing.get("neighborhood", ""),
-                        listing.get("street", ""),
-                        old_price, price_numeric,
-                        listing.get("rooms", ""),
-                        listing.get("link_token", "")
+                    UPDATE listings SET
+                        price = %s,
+                        price_numeric = %s,
+                        updated_at = %s,
+                        last_seen_at = %s,
+                        is_active = TRUE,
+                        raw_data = %s
+                    WHERE id = %s
+                """, (
+                    listing.get("price"),
+                    price_numeric,
+                    listing.get("updated_at"),
+                    now,
+                    json.dumps(listing),
+                    listing["id"]
+                ))
+                updated_count += 1
+            else:
+                # Insert new listing
+                cur.execute("""
+                    INSERT INTO listings (
+                        id, ad_number, link_token, street, property_type,
+                        description_line, city, neighborhood, price, price_numeric,
+                        currency, rooms, floor, size_sqm, date_added, updated_at,
+                        contact_name, is_merchant, merchant_name, latitude, longitude,
+                        image_url, images_count, amenities, raw_data, first_seen_at,
+                        last_seen_at, is_active
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, TRUE
                     )
+                """, (
+                    listing["id"],
+                    listing.get("ad_number"),
+                    listing.get("link_token"),
+                    listing.get("street"),
+                    listing.get("property_type"),
+                    listing.get("description_line"),
+                    listing.get("city"),
+                    listing.get("neighborhood"),
+                    listing.get("price"),
+                    price_numeric,
+                    listing.get("currency"),
+                    listing.get("rooms"),
+                    listing.get("floor"),
+                    listing.get("size_sqm"),
+                    date_added,
+                    listing.get("updated_at"),
+                    listing.get("contact_name"),
+                    listing.get("is_merchant", False),
+                    listing.get("merchant_name"),
+                    lat,
+                    lon,
+                    listing.get("image_url"),
+                    listing.get("images_count", 0),
+                    json.dumps(listing.get("amenities", {})),
+                    json.dumps(listing),
+                    now,
+                    now
+                ))
+                new_count += 1
 
-            # Update existing
-            cur.execute("""
-                UPDATE listings SET
-                    price = %s,
-                    price_numeric = %s,
-                    updated_at = %s,
-                    last_seen_at = %s,
-                    is_active = TRUE,
-                    raw_data = %s
-                WHERE id = %s
-            """, (
-                listing.get("price"),
-                price_numeric,
-                listing.get("updated_at"),
-                now,
-                json.dumps(listing),
-                listing["id"]
-            ))
-            updated_count += 1
-        else:
-            # Insert new listing
-            cur.execute("""
-                INSERT INTO listings (
-                    id, ad_number, link_token, street, property_type,
-                    description_line, city, neighborhood, price, price_numeric,
-                    currency, rooms, floor, size_sqm, date_added, updated_at,
-                    contact_name, is_merchant, merchant_name, latitude, longitude,
-                    image_url, images_count, amenities, raw_data, first_seen_at,
-                    last_seen_at, is_active
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, TRUE
-                )
-            """, (
-                listing["id"],
-                listing.get("ad_number"),
-                listing.get("link_token"),
-                listing.get("street"),
-                listing.get("property_type"),
-                listing.get("description_line"),
-                listing.get("city"),
-                listing.get("neighborhood"),
-                listing.get("price"),
-                price_numeric,
-                listing.get("currency"),
-                listing.get("rooms"),
-                listing.get("floor"),
-                listing.get("size_sqm"),
-                date_added,
-                listing.get("updated_at"),
-                listing.get("contact_name"),
-                listing.get("is_merchant", False),
-                listing.get("merchant_name"),
-                lat,
-                lon,
-                listing.get("image_url"),
-                listing.get("images_count", 0),
-                json.dumps(listing.get("amenities", {})),
-                json.dumps(listing),
-                now,
-                now
-            ))
-            new_count += 1
-
-            # Record initial price in history
-            if price_numeric is not None:
-                cur.execute("""
-                    INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (listing["id"], price_str, price_numeric, now, run_id))
+                # Record initial price in history
+                if price_numeric is not None:
+                    cur.execute("""
+                        INSERT INTO price_history (listing_id, price, price_numeric, recorded_at, scrape_run_id)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (listing["id"], price_str, price_numeric, now, run_id))
 
         conn.commit()
         cur.close()
