@@ -775,6 +775,46 @@
         .fav-star { cursor: pointer; font-size: 1rem; opacity: 0.3; transition: var(--transition); user-select: none; }
         .fav-star:hover { opacity: 0.7; }
         .fav-star.active { opacity: 1; color: #f59e0b; }
+
+        /* Listing thumbnail */
+        .listing-thumb {
+            width: 40px; height: 40px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: var(--gray-100);
+            flex-shrink: 0;
+        }
+
+        /* Amenity tags */
+        .amenity-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
+        .amenity-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.1875rem 0.5rem;
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-radius: 1rem;
+            font-size: 0.625rem;
+            font-weight: 500;
+        }
+
+        /* Refresh countdown */
+        .refresh-countdown {
+            font-size: 0.625rem;
+            opacity: 0.6;
+            margin-top: 0.125rem;
+        }
+
+        /* Detail modal image */
+        .detail-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+            margin-bottom: 1rem;
+            background: var(--gray-100);
+        }
     </style>
 </head>
 <body>
@@ -808,7 +848,10 @@
         </div>
         <div style="display:flex;align-items:center;gap:0.75rem;">
             <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle">Dark</button>
-            <div class="last-update" id="lastUpdate">Loading...</div>
+            <div>
+                <div class="last-update" id="lastUpdate">Loading...</div>
+                <div class="refresh-countdown" id="refreshCountdown"></div>
+            </div>
         </div>
     </div>
 </header>
@@ -922,6 +965,7 @@
                     <thead>
                         <tr>
                             <th style="width:30px;"></th>
+                            <th style="width:48px;"></th>
                             <th>
                                 <div class="th-content">
                                     <div class="th-label" onclick="sortListings('city')">City <span class="sort-icon" data-sort="city">&#9650;</span></div>
@@ -1243,6 +1287,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     loadAll();
     refreshTimer = setInterval(loadAll, AUTO_REFRESH_MS);
+    startCountdown();
     document.addEventListener('click', e => {
         if (!e.target.closest('.multi-select')) closeAllDD();
     });
@@ -1331,7 +1376,7 @@ async function loadListings() {
         filterAndRender('listings');
         renderFavorites();
     } catch (e) {
-        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="13" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 
@@ -1729,16 +1774,19 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="empty-state">No listings found</td></tr>';
         return;
     }
 
     tbody.innerHTML = listings.map((l, idx) => {
-        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
+        const sqm = parseInt(l.size_sqm);
+        const ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : null;
         const isFav = favorites.has(l.id);
+        const img = l.image_url ? `<img class="listing-thumb" src="${l.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
         return `
         <tr style="cursor:pointer" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
+            <td>${img}</td>
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
             <td>${l.street || '-'}</td>
@@ -2127,8 +2175,18 @@ function showListingDetail(idx) {
     const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : null;
     const link = `https://www.yad2.co.il/item/${l.link_token || l.id}`;
 
+    const amenities = l.amenities || {};
+    const amenityTags = Object.entries(amenities)
+        .filter(([k, v]) => v && v !== '' && v !== 'false' && v !== 'no')
+        .map(([k]) => {
+            const icons = { parking: 'P', elevator: 'E', ac: 'AC', mamad: 'M', storage: 'S' };
+            const labels = { parking: 'Parking', elevator: 'Elevator', ac: 'A/C', mamad: 'Mamad', storage: 'Storage' };
+            return `<span class="amenity-tag">${icons[k] || ''} ${labels[k] || k}</span>`;
+        }).join('');
+
     document.getElementById('detailTitle').textContent = `${l.street || l.neighborhood || 'Listing'}`;
     document.getElementById('detailContent').innerHTML = `
+        ${l.image_url ? `<img class="detail-image" src="${l.image_url}" alt="Listing photo" onerror="this.style.display='none'">` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;">
             <div><strong>City:</strong> ${l.city || '-'}</div>
             <div><strong>Neighborhood:</strong> ${l.neighborhood || '-'}</div>
@@ -2141,10 +2199,12 @@ function showListingDetail(idx) {
             ${ppsqm ? `<div><strong>Price/sqm:</strong> &#8362;${fmtN(ppsqm)}</div>` : ''}
             <div><strong>Type:</strong> ${l.is_merchant ? 'Agent' : 'Private'}${l.merchant_name ? ' (' + l.merchant_name + ')' : ''}</div>
             <div><strong>Contact:</strong> ${l.contact_name || '-'}</div>
+            <div><strong>Images:</strong> ${l.images_count || 0} photos</div>
             <div><strong>First Seen:</strong> ${fmtDT(l.first_seen_at)}</div>
             <div><strong>Last Seen:</strong> ${fmtDT(l.last_seen_at)}</div>
             <div><strong>Date Added:</strong> ${fmtDT(l.date_added)}</div>
         </div>
+        ${amenityTags ? `<div class="amenity-tags" style="margin-top:0.75rem;">${amenityTags}</div>` : ''}
         ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${l.description_line}</div>` : ''}
         <div style="margin-top:1rem;display:flex;gap:0.5rem;">
             <a href="${link}" target="_blank" class="btn btn-primary" style="text-decoration:none;">Open on Yad2</a>
@@ -2302,6 +2362,18 @@ function changePageSize(size) {
     S.listings.limit = parseInt(size);
     S.listings.page = 1;
     filterAndRender('listings');
+}
+
+// ─── REFRESH COUNTDOWN ──────────────────────────────────────────────────
+
+let countdownSec = AUTO_REFRESH_MS / 1000;
+function startCountdown() {
+    setInterval(() => {
+        countdownSec--;
+        if (countdownSec <= 0) countdownSec = AUTO_REFRESH_MS / 1000;
+        const el = document.getElementById('refreshCountdown');
+        if (el) el.textContent = `Next refresh: ${countdownSec}s`;
+    }, 1000);
 }
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
