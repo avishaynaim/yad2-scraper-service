@@ -591,6 +591,49 @@
         /* Price/sqm highlight */
         .price-sqm { color: var(--info); font-weight: 500; font-size: 0.75rem; }
 
+        /* Dark mode */
+        .dark-toggle {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            padding: 0.25rem 0.625rem;
+            border-radius: 1rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: var(--transition);
+        }
+        .dark-toggle:hover { background: rgba(255,255,255,0.25); }
+
+        [data-theme="dark"] {
+            --gray-50: #1a1a2e;
+            --gray-100: #16213e;
+            --gray-200: #1a1a2e;
+            --gray-300: #2d3748;
+            --gray-400: #718096;
+            --gray-500: #a0aec0;
+            --gray-600: #cbd5e0;
+            --gray-700: #e2e8f0;
+            --gray-800: #f7fafc;
+            --gray-900: #ffffff;
+            --primary-bg: rgba(79, 70, 229, 0.15);
+            --success-light: rgba(5, 150, 105, 0.15);
+            --warning-light: rgba(217, 119, 6, 0.15);
+            --danger-light: rgba(220, 38, 38, 0.15);
+            --info-light: rgba(2, 132, 199, 0.15);
+        }
+        [data-theme="dark"] body { background: #0f172a; }
+        [data-theme="dark"] .card, [data-theme="dark"] .chart-card,
+        [data-theme="dark"] .kpi-card, [data-theme="dark"] .tabs,
+        [data-theme="dark"] .scraper-status { background: #1e293b; }
+        [data-theme="dark"] table th { background: #1a1a2e; }
+        [data-theme="dark"] .ms-dropdown { background: #1e293b; border-color: #2d3748; }
+        [data-theme="dark"] .ms-search input, [data-theme="dark"] .range-filter input,
+        [data-theme="dark"] .quick-search input, [data-theme="dark"] select,
+        [data-theme="dark"] .modal input { background: #0f172a; color: #e2e8f0; border-color: #2d3748; }
+        [data-theme="dark"] .modal { background: #1e293b; }
+        [data-theme="dark"] .preset-btn { background: #1a1a2e; border-color: #2d3748; color: #a0aec0; }
+        [data-theme="dark"] .page-btn { background: #1e293b; border-color: #2d3748; color: #a0aec0; }
+
         /* Scraper Status Panel */
         .scraper-status {
             background: white;
@@ -758,7 +801,10 @@
                 <div class="header-kpi-label">Price Changes 24h</div>
             </div>
         </div>
-        <div class="last-update" id="lastUpdate">Loading...</div>
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+            <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle">Dark</button>
+            <div class="last-update" id="lastUpdate">Loading...</div>
+        </div>
     </div>
 </header>
 
@@ -1014,6 +1060,21 @@
 
     <!-- Analytics Panel -->
     <div class="panel" id="analytics-panel">
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-card-header">Price Trends (30 days)</div>
+                <div class="chart-card-body" id="priceTrendsChart" style="min-height:150px;">
+                    <div class="loading"><div class="spinner"></div>Loading...</div>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-card-header">Daily Price Changes</div>
+                <div class="chart-card-body" id="dailyChangesChart" style="min-height:150px;">
+                    <div class="loading"><div class="spinner"></div>Loading...</div>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title">Neighborhood Price Comparison</h2>
@@ -1104,6 +1165,22 @@ const S = {
 
 let openDD = null;
 let refreshTimer = null;
+
+// Dark mode
+function toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
+    localStorage.setItem('yad2_theme', isDark ? 'light' : 'dark');
+    document.getElementById('darkToggle').textContent = isDark ? 'Dark' : 'Light';
+}
+
+// Restore theme
+if (localStorage.getItem('yad2_theme') === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('darkToggle').textContent = 'Light';
+    });
+}
 
 // ─── INIT ───────────────────────────────────────────────────────────────────
 
@@ -1291,10 +1368,80 @@ async function loadAnalyticsCities() {
         const sel = document.getElementById('analyticsCityFilter');
         sel.innerHTML = '<option value="">All Cities</option>' +
             d.cities.map(c => `<option value="${c.city}">${c.city} (${c.listings_count})</option>`).join('');
-        await loadNeighborhoodAnalytics();
+        await Promise.allSettled([loadNeighborhoodAnalytics(), loadPriceTrends()]);
     } catch (e) {
         console.error('Analytics cities error:', e);
     }
+}
+
+async function loadPriceTrends() {
+    try {
+        const d = await api('/analytics/trends', { days: 30 });
+        renderPriceTrends(d.trends || []);
+        renderDailyChanges(d.trends || []);
+    } catch (e) {
+        document.getElementById('priceTrendsChart').innerHTML = '<div class="empty-state">Could not load trends</div>';
+        document.getElementById('dailyChangesChart').innerHTML = '<div class="empty-state">Could not load trends</div>';
+    }
+}
+
+function renderPriceTrends(trends) {
+    const el = document.getElementById('priceTrendsChart');
+    if (!trends.length) { el.innerHTML = '<div class="empty-state">No trend data yet</div>'; return; }
+
+    const prices = trends.map(t => t.avg_price).filter(Boolean);
+    if (!prices.length) { el.innerHTML = '<div class="empty-state">No price data</div>'; return; }
+    const minP = Math.min(...prices);
+    const maxP = Math.max(...prices);
+    const range = maxP - minP || 1;
+    const h = 120;
+
+    const points = trends.map((t, i) => {
+        const x = (i / (trends.length - 1 || 1)) * 100;
+        const y = h - ((t.avg_price - minP) / range) * (h - 20) - 10;
+        return `${x},${y}`;
+    }).join(' ');
+
+    el.innerHTML = `
+        <div style="position:relative;">
+            <svg viewBox="0 0 100 ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;">
+                <polyline points="${points}" fill="none" stroke="var(--primary)" stroke-width="0.5" vector-effect="non-scaling-stroke"/>
+                <polyline points="0,${h} ${points} 100,${h}" fill="url(#gradient)" opacity="0.15"/>
+                <defs><linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--primary)"/><stop offset="100%" stop-color="transparent"/>
+                </linearGradient></defs>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-size:0.625rem;color:var(--gray-400);margin-top:0.25rem;">
+                <span>${trends[0]?.date ? new Date(trends[0].date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}</span>
+                <span>Avg: &#8362;${fmtN(Math.round(prices.reduce((a,b)=>a+b,0)/prices.length))}</span>
+                <span>${trends[trends.length-1]?.date ? new Date(trends[trends.length-1].date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderDailyChanges(trends) {
+    const el = document.getElementById('dailyChangesChart');
+    if (!trends.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
+
+    const maxChanges = Math.max(...trends.map(t => t.price_changes || 0)) || 1;
+    const h = 120;
+    const barW = Math.max(1, 90 / trends.length);
+
+    el.innerHTML = `
+        <svg viewBox="0 0 100 ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;">
+            ${trends.map((t, i) => {
+                const x = (i / trends.length) * 100;
+                const barH = ((t.price_changes || 0) / maxChanges) * (h - 20);
+                return `<rect x="${x}" y="${h - barH - 5}" width="${barW}" height="${barH}" fill="var(--primary)" opacity="0.6" rx="0.5"/>`;
+            }).join('')}
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-size:0.625rem;color:var(--gray-400);margin-top:0.25rem;">
+            <span>${trends[0]?.date ? new Date(trends[0].date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}</span>
+            <span>Total: ${fmtN(trends.reduce((a,t)=>a+(t.price_changes||0),0))} changes</span>
+            <span>${trends[trends.length-1]?.date ? new Date(trends[trends.length-1].date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : ''}</span>
+        </div>
+    `;
 }
 
 async function loadNeighborhoodAnalytics() {
