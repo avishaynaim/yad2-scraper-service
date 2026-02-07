@@ -11,6 +11,7 @@ from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import pool
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
@@ -24,9 +25,34 @@ def dashboard():
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Connection pool (min 2, max 10 connections)
+_db_pool = None
+
+
+def _get_pool():
+    global _db_pool
+    if _db_pool is None or _db_pool.closed:
+        _db_pool = pool.ThreadedConnectionPool(2, 10, DATABASE_URL, cursor_factory=RealDictCursor)
+    return _db_pool
+
 
 def get_db():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    try:
+        return _get_pool().getconn()
+    except Exception:
+        # Fallback to direct connection if pool fails
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+
+def put_db(conn):
+    """Return connection to pool."""
+    try:
+        _get_pool().putconn(conn)
+    except Exception:
+        try:
+            put_db(conn)
+        except Exception:
+            pass
 
 
 _price_history_initialized = False
@@ -60,7 +86,7 @@ def ensure_price_history_table():
         print(f"Error creating price_history table: {e}")
     finally:
         if conn:
-            conn.close()
+            put_db(conn)
 
 
 @app.route("/")
@@ -99,15 +125,16 @@ def health():
         return jsonify({"status": "unhealthy", "error": "database connection failed"}), 500
     finally:
         if conn:
-            conn.close()
+            put_db(conn)
 
 
 @app.route("/stats")
 def stats():
     ensure_price_history_table()
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         cur.execute("""
@@ -182,7 +209,8 @@ def stats():
             }
         }), 500
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
 
 @app.route("/listings")
@@ -244,8 +272,9 @@ def list_listings():
         sort_by = "last_seen_at"
     sort_order = "DESC" if sort_order.lower() == "desc" else "ASC"
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         # Get total count
@@ -269,7 +298,8 @@ def list_listings():
         listings = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "total": total,
@@ -282,8 +312,9 @@ def list_listings():
 
 @app.route("/listings/<listing_id>")
 def get_listing(listing_id):
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         cur.execute("SELECT * FROM listings WHERE id = %s", (listing_id,))
@@ -307,7 +338,8 @@ def get_listing(listing_id):
 
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify(result)
 
@@ -315,8 +347,9 @@ def get_listing(listing_id):
 @app.route("/listings/<listing_id>/price-history")
 def get_listing_price_history(listing_id):
     """Get price history for a specific listing."""
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         cur.execute("SELECT id, city, street, neighborhood FROM listings WHERE id = %s", (listing_id,))
@@ -339,7 +372,8 @@ def get_listing_price_history(listing_id):
 
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "listing_id": listing_id,
@@ -361,8 +395,9 @@ def list_price_changes():
 
     days = max(1, min(days, 365))
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         # Build query with optional city filter
@@ -443,7 +478,8 @@ def list_price_changes():
         total = 0
         summary = {"listings_with_changes": 0, "total_price_records": 0}
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "total": total,
@@ -460,8 +496,9 @@ def list_price_changes():
 def list_runs():
     limit = min(request.args.get("limit", 20, type=int), 100)
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
         cur.execute("""
             SELECT * FROM scrape_runs
@@ -471,15 +508,17 @@ def list_runs():
         runs = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({"runs": runs})
 
 
 @app.route("/cities")
 def list_cities():
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
         cur.execute("""
             SELECT city, COUNT(*) as listings_count
@@ -491,7 +530,8 @@ def list_cities():
         cities = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({"cities": cities})
 
@@ -500,8 +540,9 @@ def list_cities():
 def list_neighborhoods():
     city = request.args.get("city")
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
         if city:
             cur.execute("""
@@ -523,7 +564,8 @@ def list_neighborhoods():
         neighborhoods = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({"neighborhoods": neighborhoods})
 
@@ -534,8 +576,9 @@ def neighborhood_analytics():
     city = request.args.get("city")
     min_listings = request.args.get("min_listings", 3, type=int)
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         conditions = ["is_active = TRUE", "price_numeric > 0", "neighborhood IS NOT NULL"]
@@ -569,7 +612,8 @@ def neighborhood_analytics():
         neighborhoods = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "count": len(neighborhoods),
@@ -584,8 +628,9 @@ def price_map():
     city = request.args.get("city")
     limit = min(request.args.get("limit", 500, type=int), 2000)
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         conditions = [
@@ -615,7 +660,8 @@ def price_map():
         listings = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "count": len(listings),
@@ -629,8 +675,9 @@ def price_trends():
     city = request.args.get("city")
     days = max(1, min(request.args.get("days", 30, type=int), 365))
 
-    conn = get_db()
+    conn = None
     try:
+        conn = get_db()
         cur = conn.cursor()
 
         conditions = ["ph.recorded_at > NOW() - make_interval(days => %s)"]
@@ -670,7 +717,8 @@ def price_trends():
         trends = [dict(r) for r in cur.fetchall()]
         cur.close()
     finally:
-        conn.close()
+        if conn:
+            put_db(conn)
 
     return jsonify({
         "days": days,
