@@ -5,9 +5,7 @@ Run alongside the scraper for data access.
 """
 
 import os
-import json
-from datetime import datetime
-from typing import Optional
+import logging
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -83,7 +81,7 @@ def ensure_price_history_table():
         cur.close()
         _price_history_initialized = True
     except Exception as e:
-        print(f"Error creating price_history table: {e}")
+        logging.warning(f"Error creating price_history table: {e}")
     finally:
         if conn:
             put_db(conn)
@@ -837,6 +835,9 @@ def deals_finder():
 
         deals = [dict(r) for r in cur.fetchall()]
         cur.close()
+    except Exception as e:
+        logging.error(f"Deals query error: {e}")
+        return jsonify({"count": 0, "min_discount": min_discount, "deals": [], "error": "Query failed"}), 500
     finally:
         if conn:
             put_db(conn)
