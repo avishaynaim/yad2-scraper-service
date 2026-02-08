@@ -1864,13 +1864,27 @@ async function loadListings() {
         let allListings = [];
         let offset = 0;
         let total = 0;
+        let batchNum = 0;
 
-        // Fetch all listings in batches
+        // Fetch all listings in batches, rendering progressively
         while (true) {
-            const d = await api('/listings', { limit: batchSize, offset, active_only: true });
+            batchNum++;
+            document.getElementById('listingsBadge').textContent = allListings.length
+                ? `${fmtN(allListings.length)}/${fmtN(total || '?')} loading...`
+                : 'loading...';
+            const d = await api('/listings', { limit: batchSize, offset, active_only: true, fields: 'minimal' });
             total = d.total;
             allListings = allListings.concat(d.listings);
             document.getElementById('listingsBadge').textContent = `${fmtN(allListings.length)}/${fmtN(total)}`;
+
+            // Render after first batch so user sees data immediately
+            if (batchNum === 1) {
+                S.listings.allData = allListings;
+                buildFilters('listings', true);
+                filterAndRender('listings');
+                renderFavorites();
+                renderAlerts();
+            }
 
             if (allListings.length >= total || d.listings.length < batchSize) break;
             offset += batchSize;

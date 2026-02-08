@@ -292,13 +292,20 @@ def list_listings():
         total = cur.fetchone()["count"]
 
         # Get listings
+        fields_mode = request.args.get("fields", "full")
+        if fields_mode == "minimal":
+            columns = """id, link_token, city, neighborhood, street, price_numeric,
+                         rooms, floor, size_sqm, is_merchant, merchant_name,
+                         image_url, first_seen_at, last_seen_at, is_active"""
+        else:
+            columns = """id, ad_number, link_token, street, property_type,
+                         description_line, city, neighborhood, price, price_numeric,
+                         rooms, floor, size_sqm, date_added, updated_at,
+                         contact_name, is_merchant, merchant_name,
+                         latitude, longitude, image_url, images_count,
+                         amenities, first_seen_at, last_seen_at, is_active"""
         cur.execute(f"""
-            SELECT id, ad_number, link_token, street, property_type,
-                   description_line, city, neighborhood, price, price_numeric,
-                   rooms, floor, size_sqm, date_added, updated_at,
-                   contact_name, is_merchant, merchant_name,
-                   latitude, longitude, image_url, images_count,
-                   amenities, first_seen_at, last_seen_at, is_active
+            SELECT {columns}
             FROM listings
             WHERE {where_clause}
             ORDER BY {sort_by} {sort_order}
