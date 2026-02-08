@@ -342,7 +342,9 @@
         }
 
         tbody tr { transition: background var(--transition); }
+        tbody tr:nth-child(even) { background: var(--gray-50); }
         tbody tr:hover { background: var(--primary-bg); }
+        .new-badge { display:inline-block;font-size:0.5625rem;font-weight:700;background:var(--success);color:white;padding:0.0625rem 0.3125rem;border-radius:0.25rem;margin-right:0.25rem;vertical-align:middle;letter-spacing:0.03em; }
 
         .th-content { display: flex; flex-direction: column; gap: 0.375rem; }
         .th-label { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; user-select: none; }
@@ -639,6 +641,7 @@
         [data-theme="dark"] .status-visited { background: rgba(217,119,6,0.2); }
         [data-theme="dark"] .status-interested { background: rgba(5,150,105,0.2); }
         [data-theme="dark"] .status-rejected { background: rgba(220,38,38,0.2); }
+        [data-theme="dark"] tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
         [data-theme="dark"] .detail-dom-bar { background: #0f172a; border-color: #2d3748; }
         [data-theme="dark"] tr[style*="var(--primary-bg)"],
         [data-theme="dark"] tr[style*="var(--success-light)"],
@@ -2288,8 +2291,8 @@ function renderListingsTable(listings) {
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
-            <td>${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${(l.city).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by city">${l.city}</a>` : '-'}</td>
-            <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${(l.neighborhood).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${l.neighborhood}</a>` : '-'}</td>
+            <td>${isNew24h ? '<span class="new-badge">NEW</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${esc(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
+            <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${esc(l.neighborhood)}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${esc(l.neighborhood)}</a>` : '-'}</td>
             <td>${l.street || '-'}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
