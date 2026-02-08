@@ -2211,8 +2211,11 @@ function getOptionsAll(tbl, cols) {
                 { value: 'up', label: 'Raise', count: upCount },
             ];
         } else {
+            const numeric = ['rooms', 'floor', 'size_sqm'].includes(col);
             finalResult[col] = Object.entries(result[col])
-                .sort((a, b) => b[1] - a[1])
+                .sort((a, b) => numeric
+                    ? (parseFloat(a[0]) || 0) - (parseFloat(b[0]) || 0)
+                    : a[0].localeCompare(b[0], 'he'))
                 .slice(0, 150)
                 .map(([value, count]) => ({ value, label: value, count }));
         }
