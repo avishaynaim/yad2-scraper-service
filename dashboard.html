@@ -1878,7 +1878,7 @@ async function loadListings() {
 
         S.listings.allData = allListings;
         document.getElementById('listingsBadge').textContent = fmtN(total);
-        buildFilters('listings');
+        buildFilters('listings', true);
         filterAndRender('listings');
         renderFavorites();
         renderAlerts();
@@ -1903,7 +1903,7 @@ async function loadPriceChanges() {
         document.getElementById('pcRaises').textContent = fmtN(raises.length);
         document.getElementById('pcAvg').textContent = `\u20AA${fmtN(avg)}`;
 
-        buildFilters('priceChanges');
+        buildFilters('priceChanges', true);
         filterAndRender('priceChanges');
         renderLatestDrops(drops.slice(0, 8));
     } catch (e) {
@@ -2110,13 +2110,20 @@ async function loadNeighborhoodAnalytics() {
 
 // ─── MULTI-SELECT FILTER SYSTEM ─────────────────────────────────────────────
 
-function buildFilters(tbl) {
+function buildFilters(tbl, fullRebuild) {
     const containers = document.querySelectorAll(`.multi-select[data-tbl="${tbl}"]`);
     const cols = Array.from(containers).map(c => c.dataset.col);
     const allOpts = getOptionsAll(tbl, cols);
     containers.forEach(container => {
         const col = container.dataset.col;
-        renderMS(container, allOpts[col] || [], col, tbl);
+        const opts = allOpts[col] || [];
+        // Full rebuild only on initial load; after that just update counts in place
+        if (fullRebuild || !container.dataset.built) {
+            renderMS(container, opts, col, tbl);
+            container.dataset.built = '1';
+        } else {
+            updateMSCounts(container, opts, col, tbl);
+        }
     });
 }
 
@@ -2243,6 +2250,36 @@ function renderMS(container, options, col, tbl) {
             </div>
         </div>
     `;
+}
+
+function updateMSCounts(container, options, col, tbl) {
+    const sel = S[tbl].filters[col] || [];
+    // Update trigger text
+    const trigger = container.querySelector('.ms-trigger');
+    if (trigger) {
+        const span = trigger.querySelector('span');
+        if (span) span.textContent = sel.length ? sel.length + ' selected' : 'All';
+        trigger.classList.toggle('has-selection', sel.length > 0);
+        const countSpan = trigger.querySelector('.ms-count');
+        if (sel.length && countSpan) countSpan.textContent = sel.length;
+        else if (sel.length && !countSpan) {
+            const cs = document.createElement('span');
+            cs.className = 'ms-count';
+            cs.textContent = sel.length;
+            trigger.querySelector('.ms-arrow').before(cs);
+        } else if (!sel.length && countSpan) countSpan.remove();
+    }
+    // Update option counts
+    const countMap = {};
+    options.forEach(o => countMap[o.value] = o.count);
+    container.querySelectorAll('.ms-option').forEach(label => {
+        const v = label.dataset.v;
+        const countEl = label.querySelector('.ms-option-count');
+        if (countEl && countMap[v] !== undefined) countEl.textContent = countMap[v];
+        // Update checkbox state
+        const cb = label.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = sel.includes(v);
+    });
 }
 
 function toggleDD(e, id) {
@@ -3090,7 +3127,7 @@ function clearAllFilters() {
     S.listings.filters = {};
     S.listings.page = 1;
     document.querySelectorAll('.range-filter input').forEach(i => i.value = '');
-    buildFilters('listings');
+    buildFilters('listings', true);
     filterAndRender('listings');
     toast('Filters cleared');
 }
@@ -3106,7 +3143,7 @@ function filterByCity(city) {
     S.listings.filters = { city: [city] };
     S.listings.page = 1;
     document.querySelector('[data-tab="listings"]').click();
-    buildFilters('listings');
+    buildFilters('listings', true);
     filterAndRender('listings');
 }
 
@@ -3209,7 +3246,7 @@ function applyPreset(i) {
     const maxInput = document.querySelector('.range-filter [data-range="max"]');
     if (minInput) minInput.value = min || '';
     if (maxInput) maxInput.value = max || '';
-    buildFilters('listings');
+    buildFilters('listings', true);
     filterAndRender('listings');
     toast(`Preset "${p.name}" applied`);
 }
