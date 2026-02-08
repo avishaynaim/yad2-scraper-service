@@ -1495,6 +1495,20 @@
 
     <!-- Alerts Panel -->
     <div class="panel" id="alerts-panel">
+        <!-- Telegram Connection Status -->
+        <div class="card" style="border-left:3px solid var(--info);">
+            <div style="padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                <span style="font-size:1.5rem;">&#128233;</span>
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:0.875rem;" data-i18n="Telegram Alerts">Telegram Alerts</div>
+                    <div id="telegramSubStatus" style="font-size:0.75rem;color:var(--gray-500);">
+                        <span data-i18n="Save a filter and click Subscribe to get Telegram notifications when matching apartments are found.">Save a filter and click Subscribe to get Telegram notifications when matching apartments are found.</span>
+                    </div>
+                </div>
+                <button class="preset-btn" onclick="testTelegram()" id="telegramTestBtn2" style="background:var(--info);color:white;padding:0.375rem 0.75rem;border-radius:var(--radius-sm);" data-i18n="Send Test">Send Test</button>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title" data-i18n="Saved Searches">Saved Searches</h2>
@@ -1517,6 +1531,10 @@
                     <div>
                         <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Neighborhood">Neighborhood</label>
                         <input type="text" id="alertNeighborhood" list="neighborhoodList" placeholder="Any" data-i18n-placeholder="Any" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.375rem;padding-bottom:0.25rem;">
+                        <input type="checkbox" id="alertTelegram" checked style="accent-color:var(--info);">
+                        <label for="alertTelegram" style="font-size:0.75rem;color:var(--gray-600);cursor:pointer;">&#128233; Telegram</label>
                     </div>
                     <button class="btn btn-primary" onclick="saveAlert()" data-i18n="Save">Save</button>
                     <button class="btn btn-secondary" onclick="hideAddAlertForm()" data-i18n="Cancel">Cancel</button>
@@ -1972,22 +1990,20 @@ async function loadTelegramStatus() {
 
 async function testTelegram() {
     try {
-        const btn = document.getElementById('telegramTestBtn');
-        btn.textContent = 'Sending...';
-        btn.disabled = true;
+        const btns = [document.getElementById('telegramTestBtn'), document.getElementById('telegramTestBtn2')].filter(Boolean);
+        btns.forEach(b => { b.textContent = t('Sending...'); b.disabled = true; });
         const r = await fetch(`${API_BASE}/telegram/test`, { method: 'POST' });
         const d = await r.json();
         if (d.success) {
-            toast('Test message sent to Telegram!');
+            toast(t('Test message sent to Telegram!'));
         } else {
             toast('Error: ' + (d.error || 'Unknown'));
         }
-        btn.textContent = 'Send Test';
-        btn.disabled = false;
+        btns.forEach(b => { b.textContent = t('Send Test'); b.disabled = false; });
     } catch (e) {
         toast('Failed to send test: ' + e.message);
-        document.getElementById('telegramTestBtn').textContent = 'Send Test';
-        document.getElementById('telegramTestBtn').disabled = false;
+        const btns = [document.getElementById('telegramTestBtn'), document.getElementById('telegramTestBtn2')].filter(Boolean);
+        btns.forEach(b => { b.textContent = t('Send Test'); b.disabled = false; });
     }
 }
 
@@ -3904,18 +3920,48 @@ function hideAddAlertForm() {
     document.getElementById('addAlertForm').style.display = 'none';
 }
 
-function saveAlert() {
+async function saveAlert() {
     const city = document.getElementById('alertCity').value.trim();
     const maxPrice = parseInt(document.getElementById('alertMaxPrice').value) || null;
     const minRooms = parseInt(document.getElementById('alertMinRooms').value) || null;
     const neighborhood = document.getElementById('alertNeighborhood').value.trim();
+    const wantTelegram = document.getElementById('alertTelegram').checked;
 
     if (!city && !maxPrice && !minRooms && !neighborhood) {
         toast('Set at least one filter'); return;
     }
 
     const label = [city, neighborhood, maxPrice ? `<${fmtN(maxPrice)}` : '', minRooms ? `${minRooms}+ rooms` : ''].filter(Boolean).join(', ');
-    savedAlerts.push({ city, maxPrice, minRooms, neighborhood, label, created: new Date().toISOString() });
+    const alertObj = { city, maxPrice, minRooms, neighborhood, label, created: new Date().toISOString() };
+
+    // Auto-subscribe to Telegram if checkbox is checked
+    if (wantTelegram) {
+        try {
+            const resp = await fetch(API + '/alerts/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHAT_ID,
+                    city: city || null,
+                    neighborhood: neighborhood || null,
+                    maxPrice, minRooms, label
+                })
+            });
+            const d = await resp.json();
+            if (d.id) {
+                alertObj.telegram_sub_id = d.id;
+                toast(t('Alert saved + Telegram subscribed'));
+            } else {
+                toast(`Alert saved (Telegram error: ${d.error || 'unknown'})`);
+            }
+        } catch(e) {
+            toast(`Alert saved (Telegram failed: ${e.message})`);
+        }
+    } else {
+        toast(`Alert "${label}" saved`);
+    }
+
+    savedAlerts.push(alertObj);
     localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
 
     document.getElementById('alertCity').value = '';
@@ -3924,10 +3970,16 @@ function saveAlert() {
     document.getElementById('alertNeighborhood').value = '';
     hideAddAlertForm();
     renderAlerts();
-    toast(`Alert "${label}" saved`);
 }
 
-function deleteAlert(idx) {
+async function deleteAlert(idx) {
+    const a = savedAlerts[idx];
+    // Also unsubscribe from Telegram if subscribed
+    if (a && a.telegram_sub_id) {
+        try {
+            await fetch(API + '/alerts/subscriptions/' + a.telegram_sub_id, { method: 'DELETE' });
+        } catch(e) { /* ignore */ }
+    }
     savedAlerts.splice(idx, 1);
     localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
     renderAlerts();
@@ -3986,8 +4038,8 @@ function renderAlerts() {
     list.innerHTML = savedAlerts.map((a, i) => {
         const subId = a.telegram_sub_id;
         const subBtn = subId
-            ? `<button class="preset-btn" onclick="unsubscribeTelegram(${i}, ${subId})" style="color:var(--warning);" title="${t('Unsubscribe')}">&#128276; ${t('Subscribed')}</button>`
-            : `<button class="preset-btn" onclick="subscribeTelegram(${i})" style="color:var(--info);" title="${t('Subscribe to Telegram')}">&#128276; ${t('Subscribe')}</button>`;
+            ? `<button class="preset-btn" onclick="unsubscribeTelegram(${i}, ${subId})" style="background:var(--success);color:white;padding:0.25rem 0.625rem;border-radius:var(--radius-sm);font-size:0.75rem;" title="${t('Unsubscribe')}">&#128233; ${t('Subscribed')}</button>`
+            : `<button class="preset-btn" onclick="subscribeTelegram(${i})" style="background:var(--info);color:white;padding:0.25rem 0.625rem;border-radius:var(--radius-sm);font-size:0.75rem;" title="${t('Subscribe to Telegram')}">&#128233; ${t('Subscribe')}</button>`;
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
             <div>
@@ -4304,6 +4356,10 @@ const HE = {
     'Subscribed to Telegram alerts':'נרשמת להתראות טלגרם',
     'Unsubscribed from Telegram alerts':'הרשמה לטלגרם בוטלה',
     'created':'נוצר',
+    'Alert saved + Telegram subscribed':'התראה נשמרה + נרשמת לטלגרם',
+    'Telegram Alerts':'התראות טלגרם',
+    'Save a filter and click Subscribe to get Telegram notifications when matching apartments are found.':'שמור מסנן ולחץ הרשמה כדי לקבל התראות טלגרם כשמודעות תואמות נמצאות.',
+    'Test message sent to Telegram!':'הודעת בדיקה נשלחה לטלגרם!',
 };
 
 let currentLang = localStorage.getItem('yad2_lang') || 'he';

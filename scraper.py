@@ -37,9 +37,9 @@ MAX_RETRIES = 3
 SMART_STOP_THRESHOLD = int(os.environ.get("SMART_STOP_THRESHOLD", "10"))
 FULL_SCRAPE_EVERY = int(os.environ.get("FULL_SCRAPE_EVERY", "6"))
 
-# Telegram notifications (optional)
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+# Telegram notifications
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8273771765:AAEXW66yFCnv7LHlxwvJP2yoLrss0spnrPw")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "2018339906")
 try:
     TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
 except (ValueError, TypeError):

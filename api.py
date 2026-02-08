@@ -789,8 +789,8 @@ def price_trends():
 @app.route("/telegram/status")
 def telegram_status():
     """Check if Telegram notifications are configured."""
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "8273771765:AAEXW66yFCnv7LHlxwvJP2yoLrss0spnrPw")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "2018339906")
     try:
         min_drop = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
     except (ValueError, TypeError):
@@ -807,8 +807,8 @@ def telegram_test():
     import urllib.request
     import urllib.parse
 
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "8273771765:AAEXW66yFCnv7LHlxwvJP2yoLrss0spnrPw")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "2018339906")
 
     if not bot_token or not chat_id:
         return jsonify({"error": "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars not set"}), 400
