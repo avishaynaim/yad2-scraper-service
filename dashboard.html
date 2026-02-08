@@ -2370,9 +2370,9 @@ function renderPriceChangesTable(changes) {
         const arrow = down ? '&#9660;' : '&#9650;';
         return `
             <tr>
-                <td>${c.city || '-'}</td>
-                <td>${c.neighborhood || '-'}</td>
-                <td>${c.street || '-'}</td>
+                <td>${esc(c.city || '-')}</td>
+                <td>${esc(c.neighborhood || '-')}</td>
+                <td>${esc(c.street || '-')}</td>
                 <td>${c.rooms || '-'}</td>
                 <td>&#8362;${fmtP(c.previous_price)}</td>
                 <td><strong>&#8362;${fmtP(c.price_numeric)}</strong></td>
@@ -2510,7 +2510,7 @@ function renderLatestDrops(drops) {
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:0.5rem;">${drops.map(d => `
         <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.75rem;padding:0.375rem 0;border-bottom:1px solid var(--gray-100);">
             <span style="color:var(--success);font-weight:600;">&#9660;</span>
-            <span style="flex:1;color:var(--gray-700);">${d.city}, ${d.street || d.neighborhood || ''}</span>
+            <span style="flex:1;color:var(--gray-700);">${esc(d.city)}, ${esc(d.street || d.neighborhood || '')}</span>
             <span style="text-decoration:line-through;color:var(--gray-400);">&#8362;${fmtP(d.previous_price)}</span>
             <span style="font-weight:600;color:var(--success);">&#8362;${fmtP(d.price_numeric)}</span>
             <span style="color:var(--success);font-size:0.625rem;">${d.price_diff_percent}%</span>
@@ -2549,9 +2549,9 @@ async function loadDeals() {
             return `
             <tr>
                 <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${dl.id}" onclick="toggleFavorite(event,'${dl.id}')">&#9733;</span></td>
-                <td>${dl.city || '-'}</td>
-                <td>${dl.neighborhood || '-'}</td>
-                <td>${dl.street || '-'}</td>
+                <td>${esc(dl.city || '-')}</td>
+                <td>${esc(dl.neighborhood || '-')}</td>
+                <td>${esc(dl.street || '-')}</td>
                 <td>${dl.rooms || '-'}</td>
                 <td><strong style="color:var(--success)">&#8362;${fmtP(dl.price_numeric)}</strong></td>
                 <td style="color:var(--gray-400);text-decoration:line-through;">&#8362;${fmtP(dl.area_avg)}</td>
@@ -2622,7 +2622,7 @@ function renderNeighborhoodCompare(cheapest, expensive) {
                 <div style="font-size:0.6875rem;font-weight:600;color:var(--success);margin-bottom:0.5rem;">Cheapest</div>
                 ${cheapest.map(n => `
                     <div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.25rem 0;border-bottom:1px solid var(--gray-100);">
-                        <span style="color:var(--gray-600);">${n.neighborhood}, ${n.city}</span>
+                        <span style="color:var(--gray-600);">${esc(n.neighborhood)}, ${esc(n.city)}</span>
                         <span style="font-weight:600;color:var(--success);">&#8362;${fmtP(n.avg_price)}</span>
                     </div>
                 `).join('')}
@@ -2631,7 +2631,7 @@ function renderNeighborhoodCompare(cheapest, expensive) {
                 <div style="font-size:0.6875rem;font-weight:600;color:var(--danger);margin-bottom:0.5rem;">Most Expensive</div>
                 ${expensive.map(n => `
                     <div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:0.25rem 0;border-bottom:1px solid var(--gray-100);">
-                        <span style="color:var(--gray-600);">${n.neighborhood}, ${n.city}</span>
+                        <span style="color:var(--gray-600);">${esc(n.neighborhood)}, ${esc(n.city)}</span>
                         <span style="font-weight:600;color:var(--danger);">&#8362;${fmtP(n.avg_price)}</span>
                     </div>
                 `).join('')}
@@ -2668,9 +2668,9 @@ async function loadStaleListings() {
             return `
             <tr>
                 <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
-                <td>${l.city || '-'}</td>
-                <td>${l.neighborhood || '-'}</td>
-                <td>${l.street || '-'}</td>
+                <td>${esc(l.city || '-')}</td>
+                <td>${esc(l.neighborhood || '-')}</td>
+                <td>${esc(l.street || '-')}</td>
                 <td>${l.rooms || '-'}</td>
                 <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
                 <td>${l.size_sqm || '-'}</td>
