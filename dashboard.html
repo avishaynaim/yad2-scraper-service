@@ -639,6 +639,12 @@
         [data-theme="dark"] .status-visited { background: rgba(217,119,6,0.2); }
         [data-theme="dark"] .status-interested { background: rgba(5,150,105,0.2); }
         [data-theme="dark"] .status-rejected { background: rgba(220,38,38,0.2); }
+        [data-theme="dark"] .detail-dom-bar { background: #0f172a; border-color: #2d3748; }
+        [data-theme="dark"] tr[style*="var(--primary-bg)"],
+        [data-theme="dark"] tr[style*="var(--success-light)"],
+        [data-theme="dark"] tr[style*="var(--warning-light)"],
+        [data-theme="dark"] tr[style*="var(--info-light)"],
+        [data-theme="dark"] tr[style*="var(--danger-light)"] { opacity: 0.85; }
 
         /* Scraper Status Panel */
         .scraper-status {
@@ -2423,14 +2429,21 @@ function renderScraperStatus(runs) {
     const isRunning = latest.status === 'running';
     const pct = latest.total_pages ? Math.round((latest.pages_scraped || 0) / latest.total_pages * 100) : 0;
     const type = latest.run_type || 'full';
+    let eta = '';
+    if (isRunning && latest.started_at && latest.pages_scraped > 0 && latest.total_pages) {
+        const elapsed = Date.now() - new Date(latest.started_at).getTime();
+        const rate = elapsed / latest.pages_scraped;
+        const remaining = (latest.total_pages - latest.pages_scraped) * rate;
+        eta = ` | ETA: ${fmtDur(remaining)}`;
+    }
 
     el.innerHTML = `
         <div class="scraper-status">
             <div class="scraper-status-icon ${isRunning ? 'running' : 'idle'}">${isRunning ? '&#9881;' : '&#10003;'}</div>
             <div class="scraper-status-text">
-                <div class="scraper-status-title">${isRunning ? '' : ''}${type === 'smart' ? '<span class="badge badge-info" style="font-size:0.5625rem;margin-left:0.375rem;">Smart</span>' : '<span class="badge badge-neutral" style="font-size:0.5625rem;margin-left:0.375rem;">Full</span>'} ${isRunning ? 'Scrape running...' : 'Last scrape completed'}</div>
+                <div class="scraper-status-title">${type === 'smart' ? '<span class="badge badge-info" style="font-size:0.5625rem;margin-left:0.375rem;">Smart</span>' : '<span class="badge badge-neutral" style="font-size:0.5625rem;margin-left:0.375rem;">Full</span>'} ${isRunning ? 'Scrape running...' : 'Last scrape completed'}</div>
                 <div class="scraper-status-detail">
-                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg` :
+                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg${eta}` :
                     `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg${latest.finished_at && latest.started_at ? ' | ' + fmtDur(new Date(latest.finished_at) - new Date(latest.started_at)) : ''}`}
                 </div>
             </div>
