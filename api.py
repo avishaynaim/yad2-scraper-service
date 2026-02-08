@@ -10,7 +10,7 @@ import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2 import pool
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, redirect
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder=None)
@@ -90,6 +90,11 @@ def ensure_price_history_table():
 
 @app.route("/")
 def index():
+    return redirect("/dashboard")
+
+
+@app.route("/api")
+def api_index():
     return jsonify({
         "service": "Yad2 Scraper API",
         "dashboard": "/dashboard",
