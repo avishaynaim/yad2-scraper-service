@@ -1417,6 +1417,37 @@
                 </table>
             </div>
         </div>
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Possible Duplicates</h2>
+                <div class="filter-toolbar">
+                    <button class="btn btn-secondary" onclick="findDuplicates()">Scan for Duplicates</button>
+                    <span id="dupeCount" style="font-size:0.6875rem;color:var(--gray-500);"></span>
+                </div>
+            </div>
+            <div style="padding:0.5rem 1.25rem;">
+                <span style="font-size:0.625rem;color:var(--gray-400);">Finds listings in the same location with matching rooms & similar size — may be the same apartment listed by different sources at different prices.</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Group</th>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Price</th>
+                            <th>Sqm</th>
+                            <th>Type</th>
+                            <th>Days</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dupesBody"><tr><td colspan="10" class="empty-state">Click "Scan for Duplicates" to analyze</td></tr></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Map Panel -->
@@ -2607,6 +2638,88 @@ async function loadStaleListings() {
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
     }
+}
+
+// ─── DUPLICATE DETECTOR ─────────────────────────────────────────────────────
+
+function findDuplicates() {
+    const data = S.listings.allData || [];
+    if (!data.length) { toast('Load listings first'); return; }
+    const tbody = document.getElementById('dupesBody');
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><div class="loading"><div class="spinner"></div>Scanning...</div></td></tr>';
+
+    setTimeout(() => {
+        const groups = {};
+        for (const l of data) {
+            if (!l.city || !l.rooms) continue;
+            const key = `${(l.city||'').toLowerCase()}|${(l.neighborhood||'').toLowerCase()}|${l.rooms}`;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(l);
+        }
+
+        const dupes = [];
+        let groupId = 0;
+        for (const [key, items] of Object.entries(groups)) {
+            if (items.length < 2) continue;
+            // Within each group, find pairs with similar sqm (within 10%)
+            const sqmGroups = [];
+            const used = new Set();
+            for (let i = 0; i < items.length; i++) {
+                if (used.has(i)) continue;
+                const sqmI = parseInt(items[i].size_sqm) || 0;
+                if (!sqmI) continue;
+                const cluster = [items[i]];
+                used.add(i);
+                for (let j = i + 1; j < items.length; j++) {
+                    if (used.has(j)) continue;
+                    const sqmJ = parseInt(items[j].size_sqm) || 0;
+                    if (!sqmJ) continue;
+                    if (Math.abs(sqmI - sqmJ) <= Math.max(sqmI, sqmJ) * 0.1) {
+                        cluster.push(items[j]);
+                        used.add(j);
+                    }
+                }
+                if (cluster.length >= 2) sqmGroups.push(cluster);
+            }
+            for (const cluster of sqmGroups) {
+                groupId++;
+                // Sort by price asc so cheapest is first
+                cluster.sort((a, b) => (a.price_numeric || 0) - (b.price_numeric || 0));
+                for (const l of cluster) {
+                    dupes.push({ ...l, _groupId: groupId, _groupSize: cluster.length });
+                }
+            }
+        }
+
+        const countEl = document.getElementById('dupeCount');
+        countEl.textContent = `${dupes.length} listings in ${groupId} groups`;
+
+        if (!dupes.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No potential duplicates found</td></tr>';
+            return;
+        }
+
+        // Show max 100 rows
+        const show = dupes.slice(0, 100);
+        const colors = ['var(--primary-bg)', 'var(--success-light)', 'var(--warning-light)', 'var(--info-light)', 'var(--danger-light)'];
+        tbody.innerHTML = show.map(l => {
+            const days = l.first_seen_at ? Math.floor((Date.now() - new Date(l.first_seen_at).getTime()) / 86400000) : '-';
+            const bg = colors[(l._groupId - 1) % colors.length];
+            return `
+            <tr style="background:${bg};">
+                <td><strong>#${l._groupId}</strong> <span style="font-size:0.625rem;color:var(--gray-400);">(${l._groupSize})</span></td>
+                <td>${esc(l.city || '-')}</td>
+                <td>${esc(l.neighborhood || '-')}</td>
+                <td>${esc(l.street || '-')}</td>
+                <td>${l.rooms || '-'}</td>
+                <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
+                <td>${l.size_sqm || '-'}</td>
+                <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+                <td>${days}</td>
+                <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+            </tr>`;
+        }).join('');
+    }, 50);
 }
 
 // ─── COMPARE NEIGHBORHOODS ──────────────────────────────────────────────────
