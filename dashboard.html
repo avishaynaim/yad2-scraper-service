@@ -1747,8 +1747,12 @@ async function loadAll() {
     try {
         const results = await Promise.allSettled([loadStats(), loadListings(), loadPriceChanges(), loadRuns(), loadAnalyticsCities(), loadTelegramStatus(), loadDeals(), loadMarketSummary(), loadMapData(), loadStaleListings()]);
         const failed = results.filter(r => r.status === 'rejected');
-        if (failed.length) console.error('Load failures:', failed.map(f => f.reason));
-        document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+        if (failed.length) {
+            console.error('Load failures:', failed.map(f => f.reason));
+            document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} (${failed.length} error${failed.length > 1 ? 's' : ''})`;
+        } else {
+            document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+        }
     } catch (e) {
         console.error('loadAll error:', e);
         document.getElementById('lastUpdate').textContent = `Error: ${e.message}`;
@@ -3636,7 +3640,8 @@ function exportCSV() {
         ];
     });
 
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const safeCsvCell = v => { const s = String(v).replace(/"/g, '""'); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
+    const csv = [headers, ...rows].map(r => r.map(v => `"${safeCsvCell(v)}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
