@@ -1753,7 +1753,7 @@ async function loadListings() {
         renderFavorites();
         renderAlerts();
     } catch (e) {
-        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="14" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="15" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 
@@ -2353,10 +2353,10 @@ function renderScraperStatus(runs) {
         <div class="scraper-status">
             <div class="scraper-status-icon ${isRunning ? 'running' : 'idle'}">${isRunning ? '&#9881;' : '&#10003;'}</div>
             <div class="scraper-status-text">
-                <div class="scraper-status-title">${isRunning ? `${type.toUpperCase()} scrape running...` : `Last ${type} scrape completed`}</div>
+                <div class="scraper-status-title">${isRunning ? '' : ''}${type === 'smart' ? '<span class="badge badge-info" style="font-size:0.5625rem;margin-left:0.375rem;">Smart</span>' : '<span class="badge badge-neutral" style="font-size:0.5625rem;margin-left:0.375rem;">Full</span>'} ${isRunning ? 'Scrape running...' : 'Last scrape completed'}</div>
                 <div class="scraper-status-detail">
-                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.price_changes || 0} price changes` :
-                    `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new | ${latest.price_changes || 0} price changes`}
+                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg` :
+                    `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg${latest.finished_at && latest.started_at ? ' | ' + fmtDur(new Date(latest.finished_at) - new Date(latest.started_at)) : ''}`}
                 </div>
             </div>
             ${isRunning ? `<div class="scraper-status-progress"><div class="scraper-status-progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -2609,8 +2609,8 @@ async function compareNeighborhoods() {
                 <thead>
                     <tr>
                         <th style="text-align:right;">Metric</th>
-                        <th style="text-align:center;color:var(--primary);font-weight:700;">${a.neighborhood || n1}</th>
-                        <th style="text-align:center;color:var(--info);font-weight:700;">${b.neighborhood || n2}</th>
+                        <th style="text-align:center;color:var(--primary);font-weight:700;">${esc(a.neighborhood || n1)}</th>
+                        <th style="text-align:center;color:var(--info);font-weight:700;">${esc(b.neighborhood || n2)}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -3115,10 +3115,12 @@ function exportFavoritesWithNotes() {
     const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const bom = '\uFEFF';
     const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = `yad2-favorites-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
     toast('Favorites with notes exported');
 }
 
@@ -3434,7 +3436,7 @@ function renderAnalyticsBody() {
 
     const tbody = document.getElementById('analyticsBody');
     tbody.innerHTML = sorted.map(n => `
-        <tr onclick="filterByCity('${n.city}')" style="cursor:pointer">
+        <tr onclick="filterByCity('${(n.city || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" style="cursor:pointer">
             <td>${n.city || '-'}</td>
             <td>${n.neighborhood || '-'}</td>
             <td>${fmtN(n.listings_count)}</td>
