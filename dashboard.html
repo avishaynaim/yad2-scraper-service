@@ -1892,10 +1892,12 @@ async function loadListings() {
 
         S.listings.allData = allListings;
         document.getElementById('listingsBadge').textContent = fmtN(total);
-        buildFilters('listings', true);
-        filterAndRender('listings');
-        renderFavorites();
-        renderAlerts();
+        if (batchNum > 1) {
+            buildFilters('listings', true);
+            filterAndRender('listings');
+            renderFavorites();
+            renderAlerts();
+        }
         updateNewSinceLastVisit(allListings);
     } catch (e) {
         document.getElementById('listingsBody').innerHTML = `<tr><td colspan="16" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
@@ -1945,7 +1947,7 @@ async function loadTelegramStatus() {
         const d = await api('/telegram/status');
         const el = document.getElementById('telegramStatus');
         if (d.configured) {
-            el.innerHTML = `<span class="badge badge-success">Configured</span> Min drop: ${d.min_drop_percent}%`;
+            el.innerHTML = `<span class="badge badge-success">Configured</span> Min drop: ${esc(String(d.min_drop_percent))}%`;
             document.getElementById('telegramTestBtn').style.display = '';
         } else {
             el.innerHTML = '<span class="badge badge-warning">Not configured</span> Set env vars to enable';
@@ -2256,10 +2258,10 @@ function renderMS(container, options, col, tbl) {
             </div>
             <div class="ms-options">
                 ${options.map(o => `
-                    <label class="ms-option" data-v="${o.value}">
-                        <input type="checkbox" value="${o.value}" ${sel.includes(o.value) ? 'checked' : ''}
-                            onchange="msChange('${tbl}','${col}','${o.value}',this.checked)">
-                        <span class="ms-option-label">${o.label}</span>
+                    <label class="ms-option" data-v="${esc(o.value)}">
+                        <input type="checkbox" value="${esc(o.value)}" ${sel.includes(o.value) ? 'checked' : ''}
+                            onchange="msChange('${tbl}','${col}',this.value,this.checked)">
+                        <span class="ms-option-label">${esc(o.label)}</span>
                         <span class="ms-option-count">${o.count}</span>
                     </label>
                 `).join('')}
@@ -2301,6 +2303,7 @@ function updateMSCounts(container, options, col, tbl) {
 function toggleDD(e, id) {
     e.stopPropagation();
     const dd = document.getElementById(id);
+    if (!dd) return;
     const trigger = dd.previousElementSibling;
 
     if (openDD && openDD !== dd) {
@@ -2468,7 +2471,7 @@ function renderListingsTable(listings) {
             <td>${img}</td>
             <td>${isNew24h ? '<span class="new-badge">NEW</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${esc(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
             <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${esc(l.neighborhood)}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${esc(l.neighborhood)}</a>` : '-'}</td>
-            <td>${l.street || '-'}</td>
+            <td>${esc(l.street || '-')}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
             <td>${l.size_sqm || '-'}</td>
@@ -2477,7 +2480,7 @@ function renderListingsTable(listings) {
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
             <td>${fmtD(l.first_seen_at)}</td>
             <td>${daysAgo(l.first_seen_at)}</td>
-            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank" onclick="event.stopPropagation()">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank" onclick="event.stopPropagation()">View</a></td>
         </tr>`;
     }).join('');
 }
@@ -2527,7 +2530,7 @@ function renderPriceChangesTable(changes) {
                 <td class="${cls}">&#8362;${fmtP(Math.abs(c.price_diff))}</td>
                 <td class="${cls}">${c.price_diff_percent}%</td>
                 <td>${fmtDT(c.recorded_at)}</td>
-                <td><a href="https://www.yad2.co.il/item/${c.link_token || c.listing_id}" target="_blank">View</a></td>
+                <td><a href="https://www.yad2.co.il/item/${esc(c.link_token || c.listing_id)}" target="_blank">View</a></td>
             </tr>
         `;
     }).join('');
@@ -2589,7 +2592,7 @@ function renderRoomsChart(rooms) {
     const max = Math.max(...rooms.map(r => r.count));
     el.innerHTML = `<div class="bar-chart">${rooms.filter(r => r.rooms).slice(0, 10).map((r, i) => `
         <div class="bar-row">
-            <div class="bar-label">${r.rooms} rooms</div>
+            <div class="bar-label">${esc(String(r.rooms))} rooms</div>
             <div class="bar-track">
                 <div class="bar-fill" style="width:${(r.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
                     <span>${r.count}</span>
@@ -2706,7 +2709,7 @@ async function loadDeals() {
                 <td>${dl.size_sqm || '-'}</td>
                 <td class="price-sqm">${dl.price_numeric && parseInt(dl.size_sqm) > 0 ? '&#8362;' + fmtN(Math.round(dl.price_numeric / parseInt(dl.size_sqm))) : '-'}</td>
                 <td>${dl.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
-                <td><a href="https://www.yad2.co.il/item/${dl.link_token || dl.id}" target="_blank">View</a></td>
+                <td><a href="https://www.yad2.co.il/item/${esc(dl.link_token || dl.id)}" target="_blank">View</a></td>
             </tr>`;
         }).join('');
     } catch (e) {
@@ -2823,7 +2826,7 @@ async function loadStaleListings() {
                 <td>${l.size_sqm || '-'}</td>
                 <td>${daysBadge}</td>
                 <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
-                <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+                <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">View</a></td>
             </tr>`;
         }).join('');
     } catch (e) {
@@ -2908,7 +2911,7 @@ function findDuplicates() {
                 <td>${l.size_sqm || '-'}</td>
                 <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
                 <td>${days}</td>
-                <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+                <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">View</a></td>
             </tr>`;
         }).join('');
     }, 50);
@@ -3003,7 +3006,7 @@ async function showCityDetail(cityName) {
         const neighborhoodBars = (d.neighborhoods || []).slice(0, 10).map((n, i) => {
             const max = d.neighborhoods[0].count;
             return `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;margin-bottom:0.25rem;">
-                <span style="width:100px;text-align:right;color:var(--gray-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${n.neighborhood}">${n.neighborhood}</span>
+                <span style="width:100px;text-align:right;color:var(--gray-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(n.neighborhood)}">${esc(n.neighborhood)}</span>
                 <div style="flex:1;height:18px;background:var(--gray-100);border-radius:3px;overflow:hidden;">
                     <div style="height:100%;width:${(n.count/max*100).toFixed(1)}%;background:${COLORS[i%COLORS.length]};border-radius:3px;display:flex;align-items:center;padding:0 0.375rem;">
                         <span style="font-size:0.5625rem;font-weight:600;color:white;">${n.count}</span>
@@ -3299,12 +3302,12 @@ function showListingDetail(idx) {
 
     document.getElementById('detailTitle').textContent = `${l.street || l.neighborhood || 'Listing'}`;
     document.getElementById('detailContent').innerHTML = `
-        ${l.image_url ? `<img class="detail-image" src="${l.image_url}" alt="Listing photo" onerror="this.style.display='none'">` : ''}
+        ${l.image_url ? `<img class="detail-image" src="${esc(l.image_url)}" alt="Listing photo" onerror="this.style.display='none'">` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;">
-            <div><strong>City:</strong> ${l.city || '-'}</div>
-            <div><strong>Neighborhood:</strong> ${l.neighborhood || '-'}</div>
-            <div><strong>Street:</strong> ${l.street || '-'}</div>
-            <div><strong>Property Type:</strong> ${l.property_type || '-'}</div>
+            <div><strong>City:</strong> ${esc(l.city || '-')}</div>
+            <div><strong>Neighborhood:</strong> ${esc(l.neighborhood || '-')}</div>
+            <div><strong>Street:</strong> ${esc(l.street || '-')}</div>
+            <div><strong>Property Type:</strong> ${esc(l.property_type || '-')}</div>
             <div><strong>Rooms:</strong> ${l.rooms || '-'}</div>
             <div><strong>Floor:</strong> ${l.floor || '-'}</div>
             <div><strong>Size:</strong> ${l.size_sqm ? l.size_sqm + ' sqm' : '-'}</div>
@@ -3524,9 +3527,9 @@ function renderFavorites() {
         <tr>
             <td><span class="fav-star active" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td>${noteData?.status ? getStatusBadge(noteData.status) : '<span style="color:var(--gray-300);font-size:0.6875rem;">-</span>'}</td>
-            <td>${l.city || '-'}</td>
-            <td>${l.neighborhood || '-'}</td>
-            <td>${l.street || '-'}</td>
+            <td>${esc(l.city || '-')}</td>
+            <td>${esc(l.neighborhood || '-')}</td>
+            <td>${esc(l.street || '-')}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
             <td>${l.size_sqm || '-'}</td>
@@ -3534,7 +3537,7 @@ function renderFavorites() {
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
             <td><span class="note-preview" title="${noteData?.note ? esc(noteData.note) : ''}">${noteData?.note ? esc(noteData.note) : '-'}</span></td>
             <td>${fmtD(l.first_seen_at)}</td>
-            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">View</a></td>
         </tr>`;
     }).join('');
 }
@@ -3619,7 +3622,7 @@ function findRecommendations() {
             <td>${l.size_sqm || '-'}</td>
             <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
-            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">View</a></td>
         </tr>`;
     }).join('');
     toast(`Found ${recs.length} similar listings`);
@@ -3750,7 +3753,7 @@ function showCompareModal() {
                 }).join('')}
                 <tr>
                     <td class="metric-label">Link</td>
-                    ${listings.map(l => `<td style="text-align:center;"><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">Open</a></td>`).join('')}
+                    ${listings.map(l => `<td style="text-align:center;"><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">Open</a></td>`).join('')}
                 </tr>
             </tbody>
         </table>
@@ -3852,8 +3855,8 @@ function renderMap(listings) {
             const l = listings[idx];
             if (!l) return;
             tooltip.innerHTML = `
-                <strong>${l.street || l.neighborhood || 'Listing'}</strong><br>
-                ${l.city}, ${l.neighborhood || ''}<br>
+                <strong>${esc(l.street || l.neighborhood || 'Listing')}</strong><br>
+                ${esc(l.city)}, ${esc(l.neighborhood || '')}<br>
                 &#8362;${fmtP(l.price_numeric)} | ${l.rooms || '?'} rooms | ${l.size_sqm || '?'} sqm
             `;
             tooltip.style.display = 'block';
@@ -3964,7 +3967,7 @@ function renderAlerts() {
     }
 
     // Sort by first_seen_at (newest first)
-    matches.sort((a, b) => new Date(b.listing.first_seen_at) - new Date(a.listing.first_seen_at));
+    matches.sort((a, b) => (new Date(b.listing.first_seen_at || 0)) - (new Date(a.listing.first_seen_at || 0)));
 
     document.getElementById('alertMatchCount').textContent = `${fmtN(matches.length)} matches`;
 
@@ -3980,15 +3983,15 @@ function renderAlerts() {
         return `
         <tr>
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
-            <td><span class="badge badge-info" style="font-size:0.5625rem;">${m.alertLabel}</span></td>
-            <td>${l.city || '-'}</td>
-            <td>${l.neighborhood || '-'}</td>
-            <td>${l.street || '-'}</td>
+            <td><span class="badge badge-info" style="font-size:0.5625rem;">${esc(m.alertLabel)}</span></td>
+            <td>${esc(l.city || '-')}</td>
+            <td>${esc(l.neighborhood || '-')}</td>
+            <td>${esc(l.street || '-')}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
             <td>${l.size_sqm || '-'}</td>
             <td>${daysAgo(l.first_seen_at)}</td>
-            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">View</a></td>
         </tr>`;
     }).join('');
 }
