@@ -2216,7 +2216,6 @@ function getOptionsAll(tbl, cols) {
                 .sort((a, b) => numeric
                     ? (parseFloat(a[0]) || 0) - (parseFloat(b[0]) || 0)
                     : a[0].localeCompare(b[0], 'he'))
-                .slice(0, 150)
                 .map(([value, count]) => ({ value, label: value, count }));
         }
     }
