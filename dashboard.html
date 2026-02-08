@@ -1792,7 +1792,7 @@ async function loadAll() {
         }
     } catch (e) {
         console.error('loadAll error:', e);
-        document.getElementById('lastUpdate').textContent = `Error: ${e.message}`;
+        document.getElementById('lastUpdate').textContent = `Error: ${esc(e.message)}`;
     }
 }
 
@@ -1833,7 +1833,7 @@ async function loadListings() {
         renderFavorites();
         renderAlerts();
     } catch (e) {
-        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="16" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="16" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -1856,7 +1856,7 @@ async function loadPriceChanges() {
         filterAndRender('priceChanges');
         renderLatestDrops(drops.slice(0, 8));
     } catch (e) {
-        document.getElementById('priceChangesBody').innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('priceChangesBody').innerHTML = `<tr><td colspan="11" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -1869,7 +1869,7 @@ async function loadRuns() {
         renderScraperStatus(d.runs);
         renderRecentRuns(d.runs.slice(0, 8));
     } catch (e) {
-        document.getElementById('runsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('runsBody').innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -1940,9 +1940,9 @@ async function loadPriceDropLeaderboard() {
         }
 
         tbody.innerHTML = d.neighborhoods.map(n => `
-            <tr onclick="filterByCity('${(n.city || '').replace(/'/g, "\\'")}')" style="cursor:pointer;">
-                <td>${n.city || '-'}</td>
-                <td>${n.neighborhood || '-'}</td>
+            <tr onclick="filterByCity('${esc(n.city || '')}')" style="cursor:pointer;">
+                <td>${esc(n.city || '-')}</td>
+                <td>${esc(n.neighborhood || '-')}</td>
                 <td><strong>${n.drop_count}</strong></td>
                 <td>${n.listings_affected}</td>
                 <td class="price-down">&#8362;${fmtP(n.avg_drop_amount)}</td>
@@ -1951,7 +1951,7 @@ async function loadPriceDropLeaderboard() {
             </tr>
         `).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -2053,7 +2053,7 @@ async function loadNeighborhoodAnalytics() {
             ).join('');
         }
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -2394,8 +2394,8 @@ function renderTopCities(cities) {
     if (!cities.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
     const max = cities[0].count;
     el.innerHTML = `<div class="bar-chart">${cities.slice(0, 10).map((c, i) => `
-        <div class="bar-row" style="cursor:pointer" onclick="showCityDetail('${c.city.replace(/'/g, "\\'")}')">
-            <div class="bar-label" title="${c.city}">${c.city}</div>
+        <div class="bar-row" style="cursor:pointer" onclick="showCityDetail('${esc(c.city)}')">
+            <div class="bar-label" title="${esc(c.city)}">${esc(c.city)}</div>
             <div class="bar-track">
                 <div class="bar-fill" style="width:${(c.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
                     <span>${c.count}</span>
@@ -2532,7 +2532,7 @@ async function loadDeals() {
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -2649,7 +2649,7 @@ async function loadStaleListings() {
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -2806,7 +2806,7 @@ async function compareNeighborhoods() {
             </div>
         `;
     } catch (e) {
-        el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+        el.innerHTML = `<div class="empty-state">Error: ${esc(e.message)}</div>`;
     }
 }
 
@@ -2867,11 +2867,11 @@ async function showCityDetail(cityName) {
             <div style="font-size:0.6875rem;font-weight:600;color:var(--gray-600);margin:0.75rem 0 0.375rem;">Price Distribution</div>
             ${priceBars || '<div class="empty-state">No data</div>'}
             <div style="margin-top:1rem;display:flex;gap:0.5rem;">
-                <button class="btn btn-primary" onclick="filterByCity('${cityName.replace(/'/g, "\\'")}')">View Listings</button>
+                <button class="btn btn-primary" onclick="filterByCity('${esc(cityName)}')">View Listings</button>
             </div>
         `;
     } catch (e) {
-        document.getElementById('detailContent').innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+        document.getElementById('detailContent').innerHTML = `<div class="empty-state">Error: ${esc(e.message)}</div>`;
     }
 }
 
@@ -3556,7 +3556,7 @@ async function loadMapData() {
 
         renderMap(mapData);
     } catch (e) {
-        el.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+        el.innerHTML = `<div class="empty-state">Error: ${esc(e.message)}</div>`;
     }
 }
 
@@ -3792,9 +3792,9 @@ function renderAnalyticsBody() {
 
     const tbody = document.getElementById('analyticsBody');
     tbody.innerHTML = sorted.map(n => `
-        <tr onclick="filterByCity('${(n.city || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" style="cursor:pointer">
-            <td>${n.city || '-'}</td>
-            <td>${n.neighborhood || '-'}</td>
+        <tr onclick="filterByCity('${esc(n.city || '')}')" style="cursor:pointer">
+            <td>${esc(n.city || '-')}</td>
+            <td>${esc(n.neighborhood || '-')}</td>
             <td>${fmtN(n.listings_count)}</td>
             <td><strong>&#8362;${fmtP(n.avg_price)}</strong></td>
             <td>&#8362;${fmtP(n.median_price)}</td>
