@@ -1860,14 +1860,29 @@ async function loadStats() {
 
 async function loadListings() {
     try {
-        const d = await api('/listings', { limit: 1000, active_only: true });
-        S.listings.allData = d.listings;
-        document.getElementById('listingsBadge').textContent = fmtN(d.total);
+        const batchSize = 5000;
+        let allListings = [];
+        let offset = 0;
+        let total = 0;
+
+        // Fetch all listings in batches
+        while (true) {
+            const d = await api('/listings', { limit: batchSize, offset, active_only: true });
+            total = d.total;
+            allListings = allListings.concat(d.listings);
+            document.getElementById('listingsBadge').textContent = `${fmtN(allListings.length)}/${fmtN(total)}`;
+
+            if (allListings.length >= total || d.listings.length < batchSize) break;
+            offset += batchSize;
+        }
+
+        S.listings.allData = allListings;
+        document.getElementById('listingsBadge').textContent = fmtN(total);
         buildFilters('listings');
         filterAndRender('listings');
         renderFavorites();
         renderAlerts();
-        updateNewSinceLastVisit(d.listings);
+        updateNewSinceLastVisit(allListings);
     } catch (e) {
         document.getElementById('listingsBody').innerHTML = `<tr><td colspan="16" class="empty-state">Error: ${esc(e.message)}</td></tr>`;
     }

@@ -234,7 +234,7 @@ def list_listings():
     max_rooms = request.args.get("max_rooms", type=int)
     is_merchant = request.args.get("is_merchant")
     active_only = request.args.get("active_only", "true").lower() == "true"
-    limit = min(request.args.get("limit", 100, type=int), 1000)
+    limit = min(request.args.get("limit", 100, type=int), 50000)
     offset = max(request.args.get("offset", 0, type=int), 0)
     sort_by = request.args.get("sort_by", "last_seen_at")
     sort_order = request.args.get("sort_order", "desc")
