@@ -3937,7 +3937,7 @@ async function saveAlert() {
     // Auto-subscribe to Telegram if checkbox is checked
     if (wantTelegram) {
         try {
-            const resp = await fetch(API + '/alerts/subscribe', {
+            const resp = await fetch(API_BASE + '/alerts/subscribe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3977,7 +3977,7 @@ async function deleteAlert(idx) {
     // Also unsubscribe from Telegram if subscribed
     if (a && a.telegram_sub_id) {
         try {
-            await fetch(API + '/alerts/subscriptions/' + a.telegram_sub_id, { method: 'DELETE' });
+            await fetch(API_BASE + '/alerts/subscriptions/' + a.telegram_sub_id, { method: 'DELETE' });
         } catch(e) { /* ignore */ }
     }
     savedAlerts.splice(idx, 1);
@@ -3991,7 +3991,7 @@ async function subscribeTelegram(alertIdx) {
     const a = savedAlerts[alertIdx];
     if (!a) return;
     try {
-        const resp = await fetch(API + '/alerts/subscribe', {
+        const resp = await fetch(API_BASE + '/alerts/subscribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -4014,7 +4014,7 @@ async function subscribeTelegram(alertIdx) {
 
 async function unsubscribeTelegram(alertIdx, subId) {
     try {
-        const resp = await fetch(API + '/alerts/subscriptions/' + subId, { method: 'DELETE' });
+        const resp = await fetch(API_BASE + '/alerts/subscriptions/' + subId, { method: 'DELETE' });
         const d = await resp.json();
         if (d.error) { toast(d.error); return; }
         delete savedAlerts[alertIdx].telegram_sub_id;
