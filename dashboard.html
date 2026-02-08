@@ -3169,13 +3169,44 @@ function showListingDetail(idx) {
             </div>
             <textarea class="note-textarea" id="noteText_${l.id}" placeholder="Add private notes about this listing..." onblur="updateListingNote('${l.id}')">${noteData?.note ? esc(noteData.note) : ''}</textarea>
         </div>
-        <div style="margin-top:1rem;display:flex;gap:0.5rem;">
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
             <a href="${link}" target="_blank" class="btn btn-primary" style="text-decoration:none;">Open on Yad2</a>
             <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${link}');toast('Link copied!')">Copy Link</button>
+            <button class="btn btn-secondary" onclick="shareListingWhatsApp(${(S.listings.page-1)*S.listings.limit + idx})" style="background:#25d366;color:white;border-color:#25d366;">WhatsApp</button>
+            <button class="btn btn-secondary" onclick="copyListingSummary(${(S.listings.page-1)*S.listings.limit + idx})">Copy Summary</button>
         </div>
     `;
     document.getElementById('detailModal').classList.add('active');
     loadListingPriceHistory(l.id);
+}
+
+function buildListingSummary(idx) {
+    const l = S.listings.data[idx];
+    if (!l) return '';
+    const sqm = parseInt(l.size_sqm);
+    const ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : null;
+    const link = `https://www.yad2.co.il/item/${l.link_token || l.id}`;
+    const lines = [
+        `\u{1F3E0} ${l.street || ''} ${l.neighborhood || ''}, ${l.city || ''}`,
+        `\u{1F4B0} \u20AA${fmtP(l.price_numeric)}${ppsqm ? ` (\u20AA${fmtN(ppsqm)}/sqm)` : ''}`,
+        `\u{1F6CF} ${l.rooms || '?'} rooms | ${l.size_sqm || '?'} sqm | Floor ${l.floor || '?'}`,
+        l.is_merchant ? `\u{1F464} Agent${l.merchant_name ? ': ' + l.merchant_name : ''}` : `\u{1F464} Private`,
+        link
+    ];
+    return lines.filter(Boolean).join('\n');
+}
+
+function shareListingWhatsApp(idx) {
+    const text = buildListingSummary(idx);
+    if (!text) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function copyListingSummary(idx) {
+    const text = buildListingSummary(idx);
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast('Summary copied to clipboard');
 }
 
 async function loadListingPriceHistory(listingId) {
