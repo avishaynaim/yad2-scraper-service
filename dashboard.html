@@ -629,10 +629,16 @@
         [data-theme="dark"] .ms-dropdown { background: #1e293b; border-color: #2d3748; }
         [data-theme="dark"] .ms-search input, [data-theme="dark"] .range-filter input,
         [data-theme="dark"] .quick-search input, [data-theme="dark"] select,
-        [data-theme="dark"] .modal input { background: #0f172a; color: #e2e8f0; border-color: #2d3748; }
+        [data-theme="dark"] .modal input, [data-theme="dark"] .note-textarea,
+        [data-theme="dark"] .note-status-select { background: #0f172a; color: #e2e8f0; border-color: #2d3748; }
         [data-theme="dark"] .modal { background: #1e293b; }
         [data-theme="dark"] .preset-btn { background: #1a1a2e; border-color: #2d3748; color: #a0aec0; }
         [data-theme="dark"] .page-btn { background: #1e293b; border-color: #2d3748; color: #a0aec0; }
+        [data-theme="dark"] .compare-table th { background: #1a1a2e; }
+        [data-theme="dark"] .status-called { background: rgba(37,99,235,0.2); }
+        [data-theme="dark"] .status-visited { background: rgba(217,119,6,0.2); }
+        [data-theme="dark"] .status-interested { background: rgba(5,150,105,0.2); }
+        [data-theme="dark"] .status-rejected { background: rgba(220,38,38,0.2); }
 
         /* Scraper Status Panel */
         .scraper-status {
@@ -3138,7 +3144,8 @@ function exportFavoritesWithNotes() {
             'https://www.yad2.co.il/item/' + (l.link_token || l.id)
         ]);
     });
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const safeCsv = v => { const s = String(v); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
+    const csv = rows.map(r => r.map(c => `"${safeCsv(c)}"`).join(',')).join('\n');
     const bom = '\uFEFF';
     const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -3187,10 +3194,6 @@ function updateListingNote(id) {
         listingNotes[id] = { note, status, updated: Date.now() };
     }
     saveNotes();
-    // Refresh note indicators in listing table
-    document.querySelectorAll(`.note-indicator`).forEach(el => {
-        // Re-render will handle this on next table render
-    });
     renderFavorites();
 }
 
@@ -3230,7 +3233,7 @@ function clearCompare() {
 
 function showCompareModal() {
     if (compareSet.size < 2) { toast('Select at least 2 listings to compare'); return; }
-    const listings = S.listings.allData.filter(l => compareSet.has(l.id));
+    const listings = S.listings.allData.filter(l => compareSet.has(l.id)).map(l => ({...l}));
     if (listings.length < 2) { toast('Selected listings not loaded'); return; }
 
     const metrics = [
