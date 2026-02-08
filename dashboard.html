@@ -2111,53 +2111,106 @@ async function loadNeighborhoodAnalytics() {
 // ─── MULTI-SELECT FILTER SYSTEM ─────────────────────────────────────────────
 
 function buildFilters(tbl) {
-    document.querySelectorAll(`.multi-select[data-tbl="${tbl}"]`).forEach(container => {
+    const containers = document.querySelectorAll(`.multi-select[data-tbl="${tbl}"]`);
+    const cols = Array.from(containers).map(c => c.dataset.col);
+    const allOpts = getOptionsAll(tbl, cols);
+    containers.forEach(container => {
         const col = container.dataset.col;
-        const opts = getOptions(tbl, col);
-        renderMS(container, opts, col, tbl);
+        renderMS(container, allOpts[col] || [], col, tbl);
     });
 }
 
-function getOptions(tbl, col) {
+function getOptionsAll(tbl, cols) {
     const data = S[tbl].allData;
     const filters = S[tbl].filters;
+    const activeFilters = Object.entries(filters).filter(([fc, vals]) =>
+        fc !== 'price_min' && fc !== 'price_max' && vals?.length
+    );
 
-    // Apply all OTHER filters to get cascaded counts
-    let filtered = data;
-    Object.entries(filters).forEach(([fc, vals]) => {
-        if (fc === col || fc === 'price_min' || fc === 'price_max' || !vals?.length) return;
-        filtered = filtered.filter(item => {
-            if (fc === 'is_merchant') return vals.includes(String(item.is_merchant));
-            if (fc === 'direction') {
-                return (vals.includes('down') && item.price_diff < 0) || (vals.includes('up') && item.price_diff > 0);
+    // Single pass: for each column, count values considering all OTHER active filters
+    const result = {};
+    for (const col of cols) {
+        if (col === 'is_merchant') {
+            result[col] = '__special_merchant__';
+        } else if (col === 'direction') {
+            result[col] = '__special_direction__';
+        } else {
+            result[col] = {};
+        }
+    }
+
+    // For each item, check which filter columns it passes (excluding one at a time)
+    for (const item of data) {
+        // Pre-compute which active filters this item matches
+        const filterResults = {};
+        for (const [fc, vals] of activeFilters) {
+            if (fc === 'is_merchant') filterResults[fc] = vals.includes(String(item.is_merchant));
+            else if (fc === 'direction') filterResults[fc] = (vals.includes('down') && item.price_diff < 0) || (vals.includes('up') && item.price_diff > 0);
+            else filterResults[fc] = vals.includes(String(item[fc] || ''));
+        }
+
+        for (const col of cols) {
+            // Check if item passes all filters EXCEPT this column's filter
+            let passes = true;
+            for (const [fc] of activeFilters) {
+                if (fc === col) continue;
+                if (!filterResults[fc]) { passes = false; break; }
             }
-            return vals.includes(String(item[fc] || ''));
-        });
-    });
+            if (!passes) continue;
 
-    if (col === 'is_merchant') {
-        return [
-            { value: 'true', label: 'Agent', count: filtered.filter(d => d.is_merchant).length },
-            { value: 'false', label: 'Private', count: filtered.filter(d => !d.is_merchant).length },
-        ];
-    }
-    if (col === 'direction') {
-        return [
-            { value: 'down', label: 'Drop', count: filtered.filter(d => d.price_diff < 0).length },
-            { value: 'up', label: 'Raise', count: filtered.filter(d => d.price_diff > 0).length },
-        ];
+            if (col === 'is_merchant') {
+                // handled below
+            } else if (col === 'direction') {
+                // handled below
+            } else {
+                const v = String(item[col] || '');
+                if (v) result[col][v] = (result[col][v] || 0) + 1;
+            }
+        }
     }
 
-    const counts = {};
-    filtered.forEach(item => {
-        const v = String(item[col] || '');
-        if (v) counts[v] = (counts[v] || 0) + 1;
-    });
-
-    return Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 150)
-        .map(([value, count]) => ({ value, label: value, count }));
+    // Second quick pass for special columns (merchant/direction) - only if needed
+    const finalResult = {};
+    for (const col of cols) {
+        if (col === 'is_merchant') {
+            // Quick pass for merchant
+            let agentCount = 0, privateCount = 0;
+            const otherFilters = activeFilters.filter(([fc]) => fc !== 'is_merchant');
+            for (const item of data) {
+                let passes = true;
+                for (const [fc, vals] of otherFilters) {
+                    if (fc === 'direction') { if (!((vals.includes('down') && item.price_diff < 0) || (vals.includes('up') && item.price_diff > 0))) { passes = false; break; } }
+                    else if (!vals.includes(String(item[fc] || ''))) { passes = false; break; }
+                }
+                if (passes) { if (item.is_merchant) agentCount++; else privateCount++; }
+            }
+            finalResult[col] = [
+                { value: 'true', label: 'Agent', count: agentCount },
+                { value: 'false', label: 'Private', count: privateCount },
+            ];
+        } else if (col === 'direction') {
+            let downCount = 0, upCount = 0;
+            const otherFilters = activeFilters.filter(([fc]) => fc !== 'direction');
+            for (const item of data) {
+                let passes = true;
+                for (const [fc, vals] of otherFilters) {
+                    if (fc === 'is_merchant') { if (!vals.includes(String(item.is_merchant))) { passes = false; break; } }
+                    else if (!vals.includes(String(item[fc] || ''))) { passes = false; break; }
+                }
+                if (passes) { if (item.price_diff < 0) downCount++; else if (item.price_diff > 0) upCount++; }
+            }
+            finalResult[col] = [
+                { value: 'down', label: 'Drop', count: downCount },
+                { value: 'up', label: 'Raise', count: upCount },
+            ];
+        } else {
+            finalResult[col] = Object.entries(result[col])
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 150)
+                .map(([value, count]) => ({ value, label: value, count }));
+        }
+    }
+    return finalResult;
 }
 
 function renderMS(container, options, col, tbl) {
@@ -2233,15 +2286,21 @@ function msAll(tbl, col, id) {
     const vals = Array.from(visible).map(cb => { cb.checked = true; return cb.value; });
     S[tbl].filters[col] = vals;
     S[tbl].page = 1;
-    buildFilters(tbl);
     filterAndRender(tbl);
+    deferBuildFilters(tbl);
 }
 
 function msNone(tbl, col) {
     S[tbl].filters[col] = [];
     S[tbl].page = 1;
-    buildFilters(tbl);
     filterAndRender(tbl);
+    deferBuildFilters(tbl);
+}
+
+let _buildFiltersTimer = null;
+function deferBuildFilters(tbl) {
+    if (_buildFiltersTimer) clearTimeout(_buildFiltersTimer);
+    _buildFiltersTimer = setTimeout(() => buildFilters(tbl), 300);
 }
 
 function msChange(tbl, col, val, checked) {
@@ -2252,9 +2311,9 @@ function msChange(tbl, col, val, checked) {
         S[tbl].filters[col] = S[tbl].filters[col].filter(v => v !== val);
     }
     S[tbl].page = 1;
-    // Rebuild ALL filter dropdowns for this table (cascading)
-    buildFilters(tbl);
+    // Render results immediately, defer cascading filter counts rebuild
     filterAndRender(tbl);
+    deferBuildFilters(tbl);
 }
 
 // ─── FILTERING & RENDERING ──────────────────────────────────────────────────
@@ -2266,32 +2325,43 @@ function filterAndRender(tbl) {
 
 function filterListings() {
     const f = S.listings.filters;
-    let data = S.listings.allData;
+    const allData = S.listings.allData;
 
     // Quick search
     const q = (document.getElementById('listingsSearch')?.value || '').trim().toLowerCase();
-    if (q) {
-        data = data.filter(i =>
-            (i.city || '').toLowerCase().includes(q) ||
-            (i.neighborhood || '').toLowerCase().includes(q) ||
-            (i.street || '').toLowerCase().includes(q)
-        );
-    }
 
+    // Collect active column filters into Sets for O(1) lookup
+    const colFilters = [];
     Object.entries(f).forEach(([col, vals]) => {
         if (col === 'price_min' || col === 'price_max' || !vals?.length) return;
-        if (col === 'is_merchant') {
-            data = data.filter(i => vals.includes(String(i.is_merchant)));
-        } else {
-            data = data.filter(i => vals.includes(String(i[col] || '')));
-        }
+        colFilters.push({ col, vals: new Set(vals), isMerchant: col === 'is_merchant' });
     });
+    const pMin = f.price_min || 0;
+    const pMax = f.price_max || 0;
 
-    if (f.price_min) data = data.filter(i => i.price_numeric >= f.price_min);
-    if (f.price_max) data = data.filter(i => i.price_numeric <= f.price_max);
+    // Single-pass filter
+    const data = [];
+    for (let idx = 0; idx < allData.length; idx++) {
+        const i = allData[idx];
+        // Search filter
+        if (q && !(i.city || '').toLowerCase().includes(q) &&
+                !(i.neighborhood || '').toLowerCase().includes(q) &&
+                !(i.street || '').toLowerCase().includes(q)) continue;
+        // Column filters
+        let skip = false;
+        for (const cf of colFilters) {
+            const v = cf.isMerchant ? String(i.is_merchant) : String(i[cf.col] || '');
+            if (!cf.vals.has(v)) { skip = true; break; }
+        }
+        if (skip) continue;
+        // Price range
+        if (pMin && (!i.price_numeric || i.price_numeric < pMin)) continue;
+        if (pMax && (!i.price_numeric || i.price_numeric > pMax)) continue;
+        data.push(i);
+    }
 
     // Compute price_per_sqm for sorting
-    data.forEach(i => { const sqm = parseInt(i.size_sqm); i.price_per_sqm = (i.price_numeric && sqm > 0) ? Math.round(i.price_numeric / sqm) : 0; });
+    for (const i of data) { const sqm = parseInt(i.size_sqm); i.price_per_sqm = (i.price_numeric && sqm > 0) ? Math.round(i.price_numeric / sqm) : 0; }
 
     // Sort
     const { col, ord } = S.listings.sort;
