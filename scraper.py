@@ -788,6 +788,7 @@ class Yad2Scraper:
             total_new = resume["listings_new"]
             total_updated = resume["listings_updated"]
             total_price_changes = resume["price_changes"]
+            total_listings_found = resume["listings_found"]
             scraped_pages = resume["scraped_pages"]
             total_pages = resume["total_pages"]
             run_started_at = resume["started_at"]
@@ -800,6 +801,7 @@ class Yad2Scraper:
             total_new = 0
             total_updated = 0
             total_price_changes = 0
+            total_listings_found = 0
             scraped_pages = set()
             total_pages = 0
             run_started_at = datetime.now(timezone.utc)
@@ -820,6 +822,7 @@ class Yad2Scraper:
                 listings = self._extract_listings(data)
                 pages_scraped += 1
                 scraped_pages.add(1)
+                total_listings_found += len(listings)
 
                 total_pages = self._get_total_pages(data)
                 logger.info(f"Page 1: {len(listings)} listings, total pages: {total_pages}")
@@ -830,7 +833,7 @@ class Yad2Scraper:
                 total_price_changes += price_changes
 
                 update_scrape_progress(run_id, pages_scraped, pages_failed,
-                                       pages_scraped * 36, total_new, total_updated,
+                                       total_listings_found, total_new, total_updated,
                                        total_price_changes, 1, scraped_pages, total_pages)
 
             # Build remaining pages (exclude already scraped)
@@ -882,6 +885,7 @@ class Yad2Scraper:
                         page_listings = self._extract_listings(page_data)
                         pages_scraped += 1
                         scraped_pages.add(page)
+                        total_listings_found += len(page_listings)
 
                         new, updated, price_changes = save_listings(page_listings, run_id)
                         total_new += new
@@ -890,7 +894,7 @@ class Yad2Scraper:
 
                         # Persist progress after each page
                         update_scrape_progress(run_id, pages_scraped, pages_failed,
-                                               pages_scraped * 36, total_new, total_updated,
+                                               total_listings_found, total_new, total_updated,
                                                total_price_changes, page, scraped_pages)
 
                         logger.info(f"Page {page}: {len(page_listings)} listings "
@@ -910,7 +914,7 @@ class Yad2Scraper:
                               f"pages ({success_rate:.0%}), need >= 80%")
             finish_scrape_run(
                 run_id, total_pages, pages_scraped, final_failed,
-                pages_scraped * 36, total_new, total_updated, total_price_changes, "completed"
+                total_listings_found, total_new, total_updated, total_price_changes, "completed"
             )
 
             logger.info(f"Full scrape #{run_id} completed: "
@@ -931,7 +935,7 @@ class Yad2Scraper:
         except Exception as e:
             logger.error(f"Full scrape failed: {e}")
             finish_scrape_run(run_id, total_pages, pages_scraped, pages_failed,
-                            pages_scraped * 36, total_new, total_updated,
+                            total_listings_found, total_new, total_updated,
                             total_price_changes, "failed", str(e))
             raise
 

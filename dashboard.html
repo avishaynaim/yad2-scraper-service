@@ -2251,8 +2251,8 @@ function renderListingsTable(listings) {
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
-            <td>${l.city ? `<a href="#" onclick="event.stopPropagation();quickFilterCity('${(l.city).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by city">${l.city}</a>` : '-'}</td>
-            <td>${l.neighborhood ? `<a href="#" onclick="event.stopPropagation();quickFilterNeighborhood('${(l.neighborhood).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${l.neighborhood}</a>` : '-'}</td>
+            <td>${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${(l.city).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by city">${l.city}</a>` : '-'}</td>
+            <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${(l.neighborhood).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${l.neighborhood}</a>` : '-'}</td>
             <td>${l.street || '-'}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>

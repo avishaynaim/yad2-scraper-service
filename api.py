@@ -507,7 +507,10 @@ def list_runs():
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM scrape_runs
+            SELECT id, started_at, finished_at, total_pages, pages_scraped,
+                   pages_failed, listings_found, listings_new, listings_updated,
+                   price_changes, status, error_message, run_type, last_page_scraped
+            FROM scrape_runs
             ORDER BY started_at DESC
             LIMIT %s
         """, (limit,))
