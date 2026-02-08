@@ -2810,8 +2810,10 @@ function renderFilterStats(data) {
     const max = prices.length ? Math.max(...prices) : 0;
     const cities = new Set(data.map(d => d.city).filter(Boolean)).size;
     const hasFilters = Object.values(S.listings.filters).some(v => v && (Array.isArray(v) ? v.length : v));
-    if (!hasFilters && !document.getElementById('listingsSearch')?.value) { el.innerHTML = ''; return; }
-    el.innerHTML = `<span style="font-size:0.6875rem;color:var(--gray-500);">${fmtN(data.length)} listings | ${cities} cities | Avg &#8362;${fmtP(avg)} | Min &#8362;${fmtP(min)} | Max &#8362;${fmtP(max)}</span>`;
+    const searchActive = !!document.getElementById('listingsSearch')?.value;
+    const newCount = data.filter(d => d.first_seen_at && (Date.now() - new Date(d.first_seen_at).getTime()) < 86400000).length;
+    const filterLabel = hasFilters || searchActive ? ' (filtered)' : '';
+    el.innerHTML = `<span style="font-size:0.6875rem;color:var(--gray-500);">${fmtN(data.length)} listings${filterLabel} | ${cities} cities | Avg &#8362;${fmtP(avg)} | Range &#8362;${fmtP(min)}-&#8362;${fmtP(max)}${newCount ? ` | ${newCount} new today` : ''}</span>`;
 }
 
 function colName(col) {
@@ -2985,6 +2987,10 @@ function showListingDetail(idx) {
             const labels = { parking: 'Parking', elevator: 'Elevator', ac: 'A/C', mamad: 'Mamad', storage: 'Storage' };
             return `<span class="amenity-tag">${icons[k] || ''} ${labels[k] || k}</span>`;
         }).join('');
+    const dom = l.first_seen_at ? Math.floor((Date.now() - new Date(l.first_seen_at).getTime()) / 86400000) : null;
+    const domColor = dom === null ? 'var(--gray-400)' : dom <= 3 ? 'var(--success)' : dom <= 14 ? 'var(--warning)' : 'var(--danger)';
+    const domLabel = dom === null ? '-' : dom === 0 ? 'Today' : dom === 1 ? '1 day' : `${dom} days`;
+    const domPct = dom === null ? 0 : Math.min(dom / 60 * 100, 100);
 
     document.getElementById('detailTitle').textContent = `${l.street || l.neighborhood || 'Listing'}`;
     document.getElementById('detailContent').innerHTML = `
@@ -3006,6 +3012,18 @@ function showListingDetail(idx) {
             <div><strong>Last Seen:</strong> ${fmtDT(l.last_seen_at)}</div>
             <div><strong>Date Added:</strong> ${fmtDT(l.date_added)}</div>
         </div>
+        ${dom !== null ? `<div style="margin-top:0.75rem;padding:0.625rem 0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);border:1px solid var(--gray-200);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.375rem;">
+                <span style="font-size:0.75rem;font-weight:600;color:var(--gray-600);">Days on Market</span>
+                <span style="font-size:0.875rem;font-weight:700;color:${domColor};">${domLabel}</span>
+            </div>
+            <div style="height:6px;background:var(--gray-200);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${domPct}%;background:${domColor};border-radius:3px;transition:width 0.3s;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:0.625rem;color:var(--gray-400);margin-top:0.25rem;">
+                <span>New</span><span>2 weeks</span><span>1 month</span><span>2 months</span>
+            </div>
+        </div>` : ''}
         ${amenityTags ? `<div class="amenity-tags" style="margin-top:0.75rem;">${amenityTags}</div>` : ''}
         ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${esc(l.description_line)}</div>` : ''}
         <div id="priceHistoryChart" style="margin-top:1rem;"></div>
