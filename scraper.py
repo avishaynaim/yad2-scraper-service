@@ -562,17 +562,8 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                         **listing, "price_numeric": price_numeric, "old_price": old_price
                     })
 
-                    # Notify on price drops
-                    if price_numeric < old_price:
-                        notify_price_drop(
-                            listing["id"],
-                            listing.get("city", ""),
-                            listing.get("neighborhood", ""),
-                            listing.get("street", ""),
-                            old_price, price_numeric,
-                            listing.get("rooms", ""),
-                            listing.get("link_token", "")
-                        )
+                    # Note: per-listing Telegram alerts are now handled by
+                    # send_subscription_alerts() which filters by user subscriptions.
 
                 # Update existing
                 cur.execute("""
