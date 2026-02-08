@@ -2295,6 +2295,10 @@ function filterListings() {
     renderActiveChips();
     updateSortIcons();
     renderFilterStats(data);
+    // Update tab badge with filtered count
+    const total = S.listings.allData.length;
+    const badge = document.getElementById('listingsBadge');
+    badge.textContent = data.length < total ? `${fmtN(data.length)}/${fmtN(total)}` : fmtN(total);
 }
 
 function renderListingsTable(listings) {
