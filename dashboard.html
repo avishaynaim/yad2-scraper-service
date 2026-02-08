@@ -848,6 +848,14 @@
         .note-status-select:focus { border-color: var(--primary-light); }
         .note-preview { font-size: 0.625rem; color: var(--gray-400); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+        /* Listing Compare */
+        .compare-check { cursor: pointer; accent-color: var(--primary); margin: 0; }
+        .compare-table { font-size: 0.75rem; }
+        .compare-table th { background: var(--gray-50); font-weight: 600; color: var(--gray-500); text-transform: uppercase; font-size: 0.6875rem; }
+        .compare-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--gray-100); }
+        .compare-table .metric-label { font-weight: 500; color: var(--gray-600); white-space: nowrap; }
+        .compare-best { font-weight: 700; color: var(--success); }
+
         /* Listing thumbnail */
         .listing-thumb {
             width: 40px; height: 40px;
@@ -1038,6 +1046,7 @@
                     <div id="listingsPresets"></div>
                     <button class="preset-btn" onclick="savePreset()">Save Filter</button>
                     <button class="btn-export" onclick="exportCSV()">&#8681; CSV</button>
+                    <button class="preset-btn" id="compareBtn" onclick="showCompareModal()" style="display:none;">Compare (<span id="compareCnt">0</span>)</button>
                     <button class="preset-btn" onclick="clearAllFilters()">Clear All</button>
                 </div>
             </div>
@@ -1049,6 +1058,7 @@
                 <table id="listingsTable">
                     <thead>
                         <tr>
+                            <th style="width:24px;" title="Compare"><input type="checkbox" disabled style="opacity:0.3;cursor:default;"></th>
                             <th style="width:30px;"></th>
                             <th style="width:28px;" title="Notes & Status">&#9998;</th>
                             <th style="width:48px;"></th>
@@ -1568,6 +1578,20 @@
     </div>
 </div>
 
+<!-- Compare Modal -->
+<div class="modal-overlay" id="compareModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="modal" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="margin:0;">Compare Listings</h3>
+            <div style="display:flex;gap:0.5rem;">
+                <button class="btn btn-secondary" onclick="clearCompare()" style="padding:0.25rem 0.5rem;font-size:0.6875rem;">Clear</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('compareModal').classList.remove('active')" style="padding:0.25rem 0.5rem;">&#10005;</button>
+            </div>
+        </div>
+        <div id="compareContent"></div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Back to top button -->
@@ -1658,6 +1682,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') {
             document.getElementById('detailModal').classList.remove('active');
             document.getElementById('presetModal').classList.remove('active');
+            document.getElementById('compareModal').classList.remove('active');
         }
         // 'r' to refresh
         if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
@@ -1753,7 +1778,7 @@ async function loadListings() {
         renderFavorites();
         renderAlerts();
     } catch (e) {
-        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="15" class="empty-state">Error: ${e.message}</td></tr>`;
+        document.getElementById('listingsBody').innerHTML = `<tr><td colspan="16" class="empty-state">Error: ${e.message}</td></tr>`;
     }
 }
 
@@ -2189,7 +2214,7 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="15" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16" class="empty-state">No listings found</td></tr>';
         return;
     }
 
@@ -2204,6 +2229,7 @@ function renderListingsTable(listings) {
         const noteInd = noteData && (noteData.note || noteData.status) ? 'has-note' : '';
         return `
         <tr style="cursor:pointer" class="${isNew24h ? 'listing-new' : ''}" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
+            <td><input type="checkbox" class="compare-check" data-id="${l.id}" ${compareSet.has(l.id) ? 'checked' : ''} onclick="toggleCompare(event,'${l.id}')"></td>
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
@@ -3170,6 +3196,102 @@ function updateListingNote(id) {
 
 function getNotesCount() {
     return Object.keys(listingNotes).filter(k => listingNotes[k].note || listingNotes[k].status).length;
+}
+
+// ─── LISTING COMPARE ────────────────────────────────────────────────────────
+
+const compareSet = new Set();
+
+function toggleCompare(e, id) {
+    e.stopPropagation();
+    if (compareSet.has(id)) {
+        compareSet.delete(id);
+    } else {
+        if (compareSet.size >= 4) { toast('Max 4 listings to compare'); return; }
+        compareSet.add(id);
+    }
+    updateCompareUI();
+}
+
+function updateCompareUI() {
+    const btn = document.getElementById('compareBtn');
+    document.getElementById('compareCnt').textContent = compareSet.size;
+    btn.style.display = compareSet.size >= 2 ? '' : 'none';
+    document.querySelectorAll('.compare-check').forEach(cb => {
+        cb.checked = compareSet.has(cb.dataset.id);
+    });
+}
+
+function clearCompare() {
+    compareSet.clear();
+    updateCompareUI();
+    document.getElementById('compareModal').classList.remove('active');
+}
+
+function showCompareModal() {
+    if (compareSet.size < 2) { toast('Select at least 2 listings to compare'); return; }
+    const listings = S.listings.allData.filter(l => compareSet.has(l.id));
+    if (listings.length < 2) { toast('Selected listings not loaded'); return; }
+
+    const metrics = [
+        { label: 'City', key: 'city' },
+        { label: 'Neighborhood', key: 'neighborhood' },
+        { label: 'Street', key: 'street' },
+        { label: 'Rooms', key: 'rooms' },
+        { label: 'Price', key: 'price_numeric', fmt: v => v ? '\u20AA' + fmtP(v) : '-', best: 'min' },
+        { label: 'Size (sqm)', key: 'size_sqm', best: 'max' },
+        { label: 'Floor', key: 'floor' },
+        { label: 'Price/sqm', key: '_ppsqm', fmt: v => v ? '\u20AA' + fmtN(v) : '-', best: 'min' },
+        { label: 'Type', key: 'is_merchant', fmt: v => v ? 'Agent' : 'Private' },
+        { label: 'Status', key: '_status', fmt: v => v || '-' },
+        { label: 'First Seen', key: 'first_seen_at', fmt: v => fmtD(v) },
+        { label: 'Days on Market', key: '_days', best: 'context' },
+    ];
+
+    // Enrich listings with computed fields
+    listings.forEach(l => {
+        const sqm = parseInt(l.size_sqm);
+        l._ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : null;
+        l._days = l.first_seen_at ? Math.floor((Date.now() - new Date(l.first_seen_at).getTime()) / 86400000) : null;
+        const nd = getNote(l.id);
+        l._status = nd?.status ? { called: 'Called', visited: 'Visited', interested: 'Interested', rejected: 'Rejected' }[nd.status] || '' : '';
+    });
+
+    const el = document.getElementById('compareContent');
+    el.innerHTML = `
+        <table class="compare-table" style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:right;padding:0.5rem 0.75rem;">Metric</th>
+                    ${listings.map(l => `<th style="text-align:center;padding:0.5rem 0.75rem;">${esc(l.street || l.neighborhood || 'Listing')}<br><span style="font-weight:400;font-size:0.5625rem;color:var(--gray-400);">${esc(l.city || '')}</span></th>`).join('')}
+                </tr>
+            </thead>
+            <tbody>
+                ${listings[0].image_url ? `<tr><td class="metric-label">Photo</td>${listings.map(l => `<td style="text-align:center;">${l.image_url ? `<img src="${l.image_url}" style="width:100px;height:60px;object-fit:cover;border-radius:4px;" onerror="this.style.display='none'">` : '-'}</td>`).join('')}</tr>` : ''}
+                ${metrics.map(m => {
+                    const vals = listings.map(l => l[m.key]);
+                    const numVals = vals.map(v => typeof v === 'number' ? v : parseFloat(v)).filter(v => !isNaN(v));
+                    let bestVal = null;
+                    if (m.best === 'min' && numVals.length) bestVal = Math.min(...numVals);
+                    if (m.best === 'max' && numVals.length) bestVal = Math.max(...numVals);
+                    return `<tr>
+                        <td class="metric-label">${m.label}</td>
+                        ${vals.map(v => {
+                            const display = m.fmt ? m.fmt(v) : (v || '-');
+                            const numV = typeof v === 'number' ? v : parseFloat(v);
+                            const isBest = bestVal !== null && !isNaN(numV) && numV === bestVal && numVals.length > 1;
+                            return `<td style="text-align:center;" class="${isBest ? 'compare-best' : ''}">${esc(String(display))}</td>`;
+                        }).join('')}
+                    </tr>`;
+                }).join('')}
+                <tr>
+                    <td class="metric-label">Link</td>
+                    ${listings.map(l => `<td style="text-align:center;"><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">Open</a></td>`).join('')}
+                </tr>
+            </tbody>
+        </table>
+    `;
+    document.getElementById('compareModal').classList.add('active');
 }
 
 // ─── MAP VIEW ───────────────────────────────────────────────────────────────
