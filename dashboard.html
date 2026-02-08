@@ -921,6 +921,8 @@
             background: var(--gray-100);
         }
     </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -1489,7 +1491,6 @@
             <div id="mapContainer" style="padding:1rem;min-height:400px;position:relative;">
                 <div class="loading"><div class="spinner"></div>Loading map data...</div>
             </div>
-            <div id="mapTooltip" style="display:none;position:fixed;background:var(--gray-900);color:white;padding:0.5rem 0.75rem;border-radius:var(--radius-sm);font-size:0.75rem;z-index:10000;pointer-events:none;max-width:250px;box-shadow:var(--shadow-lg);"></div>
         </div>
     </div>
 
@@ -1721,6 +1722,7 @@
 <script>
 const API_BASE = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
     ? 'http://localhost:8000' : location.origin;
+const TELEGRAM_CHAT_ID = '2018339906';
 
 const AUTO_REFRESH_MS = 60000;
 const COLORS = ['#4f46e5','#0284c7','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d','#ea580c'];
@@ -3821,27 +3823,23 @@ async function loadMapData() {
     }
 }
 
+let leafletMap = null;
+
 function renderMap(listings) {
     const el = document.getElementById('mapContainer');
     if (!listings.length) { el.innerHTML = '<div class="empty-state">No listings with coordinates</div>'; return; }
 
-    const lats = listings.map(l => parseFloat(l.latitude)).filter(v => !isNaN(v));
-    const lngs = listings.map(l => parseFloat(l.longitude)).filter(v => !isNaN(v));
+    const valid = listings.filter(l => {
+        const lat = parseFloat(l.latitude), lng = parseFloat(l.longitude);
+        return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+    });
 
-    if (!lats.length) { el.innerHTML = '<div class="empty-state">No coordinate data</div>'; return; }
+    if (!valid.length) { el.innerHTML = '<div class="empty-state">No coordinate data</div>'; return; }
 
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const padLat = (maxLat - minLat) * 0.05 || 0.01;
-    const padLng = (maxLng - minLng) * 0.05 || 0.01;
-
-    const W = 800, H = 500;
-    const prices = listings.map(l => l.price_numeric).filter(Boolean);
+    const prices = valid.map(l => l.price_numeric).filter(Boolean);
     const minP = Math.min(...prices), maxP = Math.max(...prices);
     const pRange = maxP - minP || 1;
 
-    function latToY(lat) { return H - ((lat - minLat + padLat) / (maxLat - minLat + 2 * padLat)) * H; }
-    function lngToX(lng) { return ((lng - minLng + padLng) / (maxLng - minLng + 2 * padLng)) * W; }
     function priceColor(p) {
         const t = (p - minP) / pRange;
         const r = Math.round(t * 220);
@@ -3849,62 +3847,60 @@ function renderMap(listings) {
         return `rgb(${r}, ${g}, 60)`;
     }
 
-    const dots = listings.map((l, i) => {
-        const lat = parseFloat(l.latitude), lng = parseFloat(l.longitude);
-        if (isNaN(lat) || isNaN(lng)) return '';
-        const x = lngToX(lng), y = latToY(lat);
-        const r = 2.5 + ((l.price_numeric - minP) / pRange) * 3;
-        const color = priceColor(l.price_numeric);
-        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="0.7" data-idx="${i}" style="cursor:pointer"/>`;
-    }).join('');
+    // Clean up previous map instance
+    if (leafletMap) { leafletMap.remove(); leafletMap = null; }
 
     el.innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;background:var(--gray-50);border-radius:var(--radius-sm);" id="mapSvg">
-            ${dots}
-        </svg>
+        <div id="leafletMap" style="width:100%;height:500px;border-radius:var(--radius-sm);"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;font-size:0.625rem;color:var(--gray-400);">
-            <span>${fmtN(listings.length)} listings plotted</span>
+            <span>${fmtN(valid.length)} ${t('listings plotted')}</span>
             <div style="display:flex;align-items:center;gap:0.25rem;">
-                <span style="width:10px;height:10px;background:rgb(0,180,60);border-radius:50%;"></span> Cheap
-                <span style="width:10px;height:10px;background:rgb(110,90,60);border-radius:50%;margin-right:0.25rem;"></span> Mid
-                <span style="width:10px;height:10px;background:rgb(220,0,60);border-radius:50%;"></span> Expensive
+                <span style="width:10px;height:10px;background:rgb(0,180,60);border-radius:50%;"></span> ${t('Cheap')}
+                <span style="width:10px;height:10px;background:rgb(110,90,60);border-radius:50%;margin-right:0.25rem;"></span> ${t('Mid')}
+                <span style="width:10px;height:10px;background:rgb(220,0,60);border-radius:50%;"></span> ${t('Expensive')}
             </div>
             <span>&#8362;${fmtP(minP)} - &#8362;${fmtP(maxP)}</span>
         </div>
     `;
 
-    // Add hover tooltip
-    const svg = document.getElementById('mapSvg');
-    const tooltip = document.getElementById('mapTooltip');
-    svg.addEventListener('mousemove', e => {
-        const circle = e.target.closest('circle');
-        if (circle) {
-            const idx = parseInt(circle.dataset.idx);
-            const l = listings[idx];
-            if (!l) return;
-            tooltip.innerHTML = `
-                <strong>${esc(l.street || l.neighborhood || 'Listing')}</strong><br>
-                ${esc(l.city)}, ${esc(l.neighborhood || '')}<br>
-                &#8362;${fmtP(l.price_numeric)} | ${l.rooms || '?'} rooms | ${l.size_sqm || '?'} sqm
-            `;
-            tooltip.style.display = 'block';
-            tooltip.style.left = e.clientX + 12 + 'px';
-            tooltip.style.top = e.clientY - 10 + 'px';
-        } else {
-            tooltip.style.display = 'none';
-        }
-    });
-    svg.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    // Create Leaflet map
+    const lats = valid.map(l => parseFloat(l.latitude));
+    const lngs = valid.map(l => parseFloat(l.longitude));
+    const bounds = L.latLngBounds(
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)]
+    );
 
-    // Click to open listing
-    svg.addEventListener('click', e => {
-        const circle = e.target.closest('circle');
-        if (circle) {
-            const idx = parseInt(circle.dataset.idx);
-            const l = listings[idx];
-            if (l) window.open(`https://www.yad2.co.il/item/${l.link_token || l.id}`, '_blank');
-        }
-    });
+    leafletMap = L.map('leafletMap', { zoomControl: true, scrollWheelZoom: true });
+    leafletMap.fitBounds(bounds.pad(0.05));
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 18
+    }).addTo(leafletMap);
+
+    // Add circle markers
+    for (const l of valid) {
+        const lat = parseFloat(l.latitude), lng = parseFloat(l.longitude);
+        const radius = 5 + ((l.price_numeric - minP) / pRange) * 5;
+        const color = priceColor(l.price_numeric);
+
+        L.circleMarker([lat, lng], {
+            radius,
+            fillColor: color,
+            color: color,
+            weight: 1,
+            opacity: 0.8,
+            fillOpacity: 0.6
+        })
+        .bindPopup(`
+            <strong>${esc(l.street || l.neighborhood || 'Listing')}</strong><br>
+            ${esc(l.city)}, ${esc(l.neighborhood || '')}<br>
+            &#8362;${fmtP(l.price_numeric)} | ${l.rooms || '?'} ${t('rooms')} | ${l.size_sqm || '?'} ${t('sqm')}<br>
+            <a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank">${t('View')}</a>
+        `)
+        .addTo(leafletMap);
+    }
 }
 
 // ─── SAVED SEARCH ALERTS ────────────────────────────────────────────────────
@@ -3984,8 +3980,6 @@ async function deleteAlert(idx) {
     localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
     renderAlerts();
 }
-
-const TELEGRAM_CHAT_ID = '2018339906';
 
 async function subscribeTelegram(alertIdx) {
     const a = savedAlerts[alertIdx];
