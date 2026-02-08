@@ -1578,6 +1578,34 @@
                 </table>
             </div>
         </div>
+        <div class="card" style="margin-top:1rem;">
+            <div class="card-header">
+                <h2 class="card-title">Recommended for You</h2>
+                <button class="btn btn-secondary" onclick="findRecommendations()">Find Similar</button>
+            </div>
+            <div style="padding:0.5rem 1.25rem;">
+                <span style="font-size:0.625rem;color:var(--gray-400);">Based on your favorites: finds listings in the same cities, similar rooms & price range that you haven't bookmarked yet.</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>City</th>
+                            <th>Neighborhood</th>
+                            <th>Street</th>
+                            <th>Rooms</th>
+                            <th>Price</th>
+                            <th>Sqm</th>
+                            <th>Price/sqm</th>
+                            <th>Type</th>
+                            <th>Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recommendBody"><tr><td colspan="10" class="empty-state">Click "Find Similar" to get recommendations</td></tr></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Runs Panel -->
@@ -3396,6 +3424,58 @@ function clearFavorites() {
     saveFavorites();
     renderFavorites();
     toast('Favorites cleared');
+}
+
+function findRecommendations() {
+    const favListings = S.listings.allData.filter(l => favorites.has(l.id));
+    const tbody = document.getElementById('recommendBody');
+    if (!favListings.length) { toast('Bookmark some listings first'); return; }
+
+    // Build profile from favorites
+    const favCities = new Set(favListings.map(l => l.city).filter(Boolean));
+    const favRooms = favListings.map(l => parseFloat(l.rooms)).filter(r => !isNaN(r));
+    const favPrices = favListings.map(l => l.price_numeric).filter(Boolean);
+    if (!favPrices.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Not enough data</td></tr>'; return; }
+
+    const minRooms = Math.min(...favRooms) - 0.5;
+    const maxRooms = Math.max(...favRooms) + 0.5;
+    const avgPrice = favPrices.reduce((a, b) => a + b, 0) / favPrices.length;
+    const priceRange = avgPrice * 0.3; // 30% tolerance
+
+    const recs = S.listings.allData.filter(l => {
+        if (favorites.has(l.id)) return false;
+        if (!favCities.has(l.city)) return false;
+        const rooms = parseFloat(l.rooms);
+        if (isNaN(rooms) || rooms < minRooms || rooms > maxRooms) return false;
+        if (!l.price_numeric) return false;
+        if (Math.abs(l.price_numeric - avgPrice) > priceRange) return false;
+        return true;
+    }).sort((a, b) => (a.price_numeric || 0) - (b.price_numeric || 0)).slice(0, 30);
+
+    if (!recs.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No similar listings found outside your favorites</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = recs.map(l => {
+        const sqm = parseInt(l.size_sqm);
+        const ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : null;
+        const isFav = favorites.has(l.id);
+        return `
+        <tr>
+            <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}');findRecommendations()">&#9733;</span></td>
+            <td>${esc(l.city || '-')}</td>
+            <td>${esc(l.neighborhood || '-')}</td>
+            <td>${esc(l.street || '-')}</td>
+            <td>${l.rooms || '-'}</td>
+            <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
+            <td>${l.size_sqm || '-'}</td>
+            <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
+            <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+            <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
+        </tr>`;
+    }).join('');
+    toast(`Found ${recs.length} similar listings`);
 }
 
 // ─── LISTING NOTES & STATUS ─────────────────────────────────────────────────
