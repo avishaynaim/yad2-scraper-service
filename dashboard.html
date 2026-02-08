@@ -879,7 +879,7 @@
         </div>
         <div style="display:flex;align-items:center;gap:0.75rem;">
             <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle" title="Toggle dark mode">Dark</button>
-            <span class="dark-toggle" style="cursor:help;font-size:0.625rem;" title="Keys: 1-7 switch tabs, R to refresh">?</span>
+            <span class="dark-toggle" style="cursor:help;font-size:0.625rem;" title="Keys: 1-9 switch tabs, R to refresh, Esc close modals">?</span>
             <div>
                 <div class="last-update" id="lastUpdate">Loading...</div>
                 <div class="refresh-countdown" id="refreshCountdown"></div>
@@ -2304,8 +2304,8 @@ function renderScraperStatus(runs) {
             <div class="scraper-status-text">
                 <div class="scraper-status-title">${isRunning ? `${type.toUpperCase()} scrape running...` : `Last ${type} scrape completed`}</div>
                 <div class="scraper-status-detail">
-                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} | ${latest.listings_new || 0} new` :
-                    `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new`}
+                    ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.price_changes || 0} price changes` :
+                    `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new | ${latest.price_changes || 0} price changes`}
                 </div>
             </div>
             ${isRunning ? `<div class="scraper-status-progress"><div class="scraper-status-progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -2887,15 +2887,15 @@ function showListingDetail(idx) {
             <div><strong>Size:</strong> ${l.size_sqm ? l.size_sqm + ' sqm' : '-'}</div>
             <div><strong>Price:</strong> <span style="font-size:1rem;font-weight:700;">&#8362;${fmtP(l.price_numeric)}</span></div>
             ${ppsqm ? `<div><strong>Price/sqm:</strong> &#8362;${fmtN(ppsqm)}</div>` : ''}
-            <div><strong>Type:</strong> ${l.is_merchant ? 'Agent' : 'Private'}${l.merchant_name ? ' (' + l.merchant_name + ')' : ''}</div>
-            <div><strong>Contact:</strong> ${l.contact_name || '-'}</div>
+            <div><strong>Type:</strong> ${l.is_merchant ? 'Agent' : 'Private'}${l.merchant_name ? ' (' + esc(l.merchant_name) + ')' : ''}</div>
+            <div><strong>Contact:</strong> ${esc(l.contact_name) || '-'}</div>
             <div><strong>Images:</strong> ${l.images_count || 0} photos</div>
             <div><strong>First Seen:</strong> ${fmtDT(l.first_seen_at)}</div>
             <div><strong>Last Seen:</strong> ${fmtDT(l.last_seen_at)}</div>
             <div><strong>Date Added:</strong> ${fmtDT(l.date_added)}</div>
         </div>
         ${amenityTags ? `<div class="amenity-tags" style="margin-top:0.75rem;">${amenityTags}</div>` : ''}
-        ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${l.description_line}</div>` : ''}
+        ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${esc(l.description_line)}</div>` : ''}
         <div id="priceHistoryChart" style="margin-top:1rem;"></div>
         ${l.latitude && l.longitude ? `<div style="margin-top:0.75rem;font-size:0.6875rem;color:var(--gray-400);">Coordinates: ${l.latitude}, ${l.longitude}</div>` : ''}
         <div style="margin-top:1rem;display:flex;gap:0.5rem;">
@@ -3329,7 +3329,8 @@ function exportCSV() {
 
     const headers = ['City','Neighborhood','Street','Rooms','Price','Sqm','Floor','Price/Sqm','Type','Added','Link'];
     const rows = data.map(l => {
-        const ppsqm = (l.price_numeric && l.size_sqm) ? Math.round(l.price_numeric / l.size_sqm) : '';
+        const sqm = parseInt(l.size_sqm);
+        const ppsqm = (l.price_numeric && sqm > 0) ? Math.round(l.price_numeric / sqm) : '';
         return [
             l.city || '', l.neighborhood || '', l.street || '', l.rooms || '',
             l.price_numeric || '', l.size_sqm || '', l.floor || '', ppsqm,
@@ -3375,12 +3376,15 @@ function startCountdown() {
 function daysAgo(s) {
     if (!s) return '-';
     const days = Math.floor((Date.now() - new Date(s).getTime()) / 86400000);
-    if (days === 0) return '<span class="badge badge-success">New</span>';
+    if (days === 0) return '<span class="badge badge-success">Today</span>';
+    if (days === 1) return '<span class="badge badge-success">1d</span>';
     if (days <= 3) return `<span class="badge badge-info">${days}d</span>`;
-    if (days <= 7) return `${days}d`;
-    return `${days}d`;
+    if (days <= 7) return `<span class="badge badge-neutral">${days}d</span>`;
+    if (days <= 14) return `${days}d`;
+    return `<span style="color:var(--gray-400)">${days}d</span>`;
 }
 
+function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtN(n) { return n == null ? '-' : Number(n).toLocaleString('en-US'); }
 function fmtP(n) { return n == null ? '-' : `${Number(n).toLocaleString('en-US')}`; }
 function fmtD(s) { return s ? new Date(s).toLocaleDateString('en-GB') : '-'; }

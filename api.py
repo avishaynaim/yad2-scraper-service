@@ -45,6 +45,7 @@ def get_db():
 def put_db(conn):
     """Return connection to pool."""
     try:
+        conn.rollback()  # Reset any aborted transaction state before returning to pool
         _get_pool().putconn(conn)
     except Exception:
         try:
