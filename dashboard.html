@@ -807,6 +807,47 @@
         .fav-star:hover { opacity: 0.7; }
         .fav-star.active { opacity: 1; color: #f59e0b; }
 
+        /* Listing Notes & Status Tracker */
+        .note-indicator { cursor: pointer; font-size: 0.8rem; opacity: 0.25; transition: var(--transition); user-select: none; }
+        .note-indicator:hover { opacity: 0.6; }
+        .note-indicator.has-note { opacity: 1; color: var(--info); }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.125rem 0.375rem;
+            border-radius: 1rem;
+            font-size: 0.5625rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .status-called { background: #dbeafe; color: #2563eb; }
+        .status-visited { background: #fef3c7; color: #d97706; }
+        .status-interested { background: #d1fae5; color: #059669; }
+        .status-rejected { background: #fee2e2; color: #dc2626; }
+        .note-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+        .note-textarea:focus { border-color: var(--primary-light); }
+        .note-status-select {
+            padding: 0.375rem 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            outline: none;
+            cursor: pointer;
+            background: white;
+        }
+        .note-status-select:focus { border-color: var(--primary-light); }
+        .note-preview { font-size: 0.625rem; color: var(--gray-400); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
         /* Listing thumbnail */
         .listing-thumb {
             width: 40px; height: 40px;
@@ -1009,6 +1050,7 @@
                     <thead>
                         <tr>
                             <th style="width:30px;"></th>
+                            <th style="width:28px;" title="Notes & Status">&#9998;</th>
                             <th style="width:48px;"></th>
                             <th>
                                 <div class="th-content">
@@ -1444,13 +1486,17 @@
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title">Bookmarked Listings</h2>
-                <button class="preset-btn" onclick="clearFavorites()">Clear All</button>
+                <div style="display:flex;gap:0.5rem;align-items:center;">
+                    <button class="preset-btn" onclick="exportFavoritesWithNotes()">Export Notes</button>
+                    <button class="preset-btn" onclick="clearFavorites()">Clear All</button>
+                </div>
             </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th></th>
+                            <th>Status</th>
                             <th>City</th>
                             <th>Neighborhood</th>
                             <th>Street</th>
@@ -1459,6 +1505,7 @@
                             <th>Sqm</th>
                             <th>Price/sqm</th>
                             <th>Type</th>
+                            <th>Notes</th>
                             <th>Added</th>
                             <th>Link</th>
                         </tr>
@@ -2142,7 +2189,7 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="14" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15" class="empty-state">No listings found</td></tr>';
         return;
     }
 
@@ -2152,9 +2199,13 @@ function renderListingsTable(listings) {
         const isFav = favorites.has(l.id);
         const img = l.image_url ? `<img class="listing-thumb" src="${l.image_url}" alt="" loading="lazy" onerror="this.style.display='none'">` : '';
         const isNew24h = l.first_seen_at && (Date.now() - new Date(l.first_seen_at).getTime()) < 86400000;
+        const noteData = getNote(l.id);
+        const statusHtml = noteData && noteData.status ? getStatusBadge(noteData.status) : '';
+        const noteInd = noteData && (noteData.note || noteData.status) ? 'has-note' : '';
         return `
         <tr style="cursor:pointer" class="${isNew24h ? 'listing-new' : ''}" onclick="showListingDetail(${(S.listings.page-1)*S.listings.limit + idx})">
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
+            <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
@@ -2864,6 +2915,7 @@ function showListingDetail(idx) {
     const sqmVal = parseInt(l.size_sqm);
     const ppsqm = (l.price_numeric && sqmVal > 0) ? Math.round(l.price_numeric / sqmVal) : null;
     const link = `https://www.yad2.co.il/item/${l.link_token || l.id}`;
+    const noteData = getNote(l.id);
 
     const amenities = l.amenities || {};
     const amenityTags = Object.entries(amenities)
@@ -2898,6 +2950,20 @@ function showListingDetail(idx) {
         ${l.description_line ? `<div style="margin-top:0.75rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.75rem;color:var(--gray-600);">${esc(l.description_line)}</div>` : ''}
         <div id="priceHistoryChart" style="margin-top:1rem;"></div>
         ${l.latitude && l.longitude ? `<div style="margin-top:0.75rem;font-size:0.6875rem;color:var(--gray-400);">Coordinates: ${l.latitude}, ${l.longitude}</div>` : ''}
+        <div style="margin-top:1rem;padding:0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);border:1px solid var(--gray-200);">
+            <div style="font-size:0.75rem;font-weight:600;color:var(--gray-600);margin-bottom:0.5rem;">Notes & Status</div>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+                <select class="note-status-select" id="noteStatus_${l.id}" onchange="updateListingNote('${l.id}')">
+                    <option value="">No status</option>
+                    <option value="called" ${noteData?.status === 'called' ? 'selected' : ''}>Called</option>
+                    <option value="visited" ${noteData?.status === 'visited' ? 'selected' : ''}>Visited</option>
+                    <option value="interested" ${noteData?.status === 'interested' ? 'selected' : ''}>Interested</option>
+                    <option value="rejected" ${noteData?.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                </select>
+                ${noteData?.status ? getStatusBadge(noteData.status) : ''}
+            </div>
+            <textarea class="note-textarea" id="noteText_${l.id}" placeholder="Add private notes about this listing..." onblur="updateListingNote('${l.id}')">${noteData?.note ? esc(noteData.note) : ''}</textarea>
+        </div>
         <div style="margin-top:1rem;display:flex;gap:0.5rem;">
             <a href="${link}" target="_blank" class="btn btn-primary" style="text-decoration:none;">Open on Yad2</a>
             <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${link}');toast('Link copied!')">Copy Link</button>
@@ -2999,22 +3065,24 @@ function toggleFavorite(e, id) {
 function renderFavorites() {
     const tbody = document.getElementById('favoritesBody');
     if (!favorites.size) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No bookmarked listings. Click the star on any listing to bookmark it.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="empty-state">No bookmarked listings. Click the star on any listing to bookmark it.</td></tr>';
         return;
     }
 
     const favListings = S.listings.allData.filter(l => favorites.has(l.id));
     if (!favListings.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">Bookmarked listings not loaded yet. Switch to Listings tab first.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="empty-state">Bookmarked listings not loaded yet. Switch to Listings tab first.</td></tr>';
         return;
     }
 
     tbody.innerHTML = favListings.map(l => {
         const sqmVal = parseInt(l.size_sqm);
         const ppsqm = (l.price_numeric && sqmVal > 0) ? Math.round(l.price_numeric / sqmVal) : null;
+        const noteData = getNote(l.id);
         return `
         <tr>
             <td><span class="fav-star active" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
+            <td>${noteData?.status ? getStatusBadge(noteData.status) : '<span style="color:var(--gray-300);font-size:0.6875rem;">-</span>'}</td>
             <td>${l.city || '-'}</td>
             <td>${l.neighborhood || '-'}</td>
             <td>${l.street || '-'}</td>
@@ -3023,10 +3091,35 @@ function renderFavorites() {
             <td>${l.size_sqm || '-'}</td>
             <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
             <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+            <td><span class="note-preview" title="${noteData?.note ? esc(noteData.note) : ''}">${noteData?.note ? esc(noteData.note) : '-'}</span></td>
             <td>${fmtD(l.first_seen_at)}</td>
             <td><a href="https://www.yad2.co.il/item/${l.link_token || l.id}" target="_blank">View</a></td>
         </tr>`;
     }).join('');
+}
+
+function exportFavoritesWithNotes() {
+    const favListings = S.listings.allData.filter(l => favorites.has(l.id));
+    if (!favListings.length) { toast('No favorites to export'); return; }
+    const rows = [['City','Neighborhood','Street','Rooms','Price','Sqm','Type','Status','Notes','Link']];
+    favListings.forEach(l => {
+        const noteData = getNote(l.id);
+        rows.push([
+            l.city || '', l.neighborhood || '', l.street || '', l.rooms || '',
+            l.price_numeric || '', l.size_sqm || '',
+            l.is_merchant ? 'Agent' : 'Private',
+            noteData?.status || '', (noteData?.note || '').replace(/"/g, '""'),
+            'https://www.yad2.co.il/item/' + (l.link_token || l.id)
+        ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `yad2-favorites-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    toast('Favorites with notes exported');
 }
 
 function clearFavorites() {
@@ -3034,6 +3127,47 @@ function clearFavorites() {
     saveFavorites();
     renderFavorites();
     toast('Favorites cleared');
+}
+
+// ─── LISTING NOTES & STATUS ─────────────────────────────────────────────────
+
+const listingNotes = JSON.parse(localStorage.getItem('yad2_notes') || '{}');
+
+function saveNotes() {
+    localStorage.setItem('yad2_notes', JSON.stringify(listingNotes));
+}
+
+function getNote(id) {
+    return listingNotes[id] || null;
+}
+
+function getStatusBadge(status) {
+    if (!status) return '';
+    const labels = { called: 'Called', visited: 'Visited', interested: 'Interested', rejected: 'Rejected' };
+    return `<span class="status-pill status-${status}">${labels[status] || status}</span>`;
+}
+
+function updateListingNote(id) {
+    const statusEl = document.getElementById('noteStatus_' + id);
+    const textEl = document.getElementById('noteText_' + id);
+    if (!statusEl || !textEl) return;
+    const status = statusEl.value;
+    const note = textEl.value.trim();
+    if (!note && !status) {
+        delete listingNotes[id];
+    } else {
+        listingNotes[id] = { note, status, updated: Date.now() };
+    }
+    saveNotes();
+    // Refresh note indicators in listing table
+    document.querySelectorAll(`.note-indicator`).forEach(el => {
+        // Re-render will handle this on next table render
+    });
+    renderFavorites();
+}
+
+function getNotesCount() {
+    return Object.keys(listingNotes).filter(k => listingNotes[k].note || listingNotes[k].status).length;
 }
 
 // ─── MAP VIEW ───────────────────────────────────────────────────────────────
