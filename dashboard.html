@@ -1913,7 +1913,7 @@ async function loadAnalyticsCities() {
         const d = await api('/cities');
         const sel = document.getElementById('analyticsCityFilter');
         sel.innerHTML = '<option value="">All Cities</option>' +
-            d.cities.map(c => `<option value="${c.city}">${c.city} (${c.listings_count})</option>`).join('');
+            d.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)} (${c.listings_count})</option>`).join('');
         await Promise.allSettled([loadNeighborhoodAnalytics(), loadPriceTrends(), loadPriceDropLeaderboard()]);
     } catch (e) {
         console.error('Analytics cities error:', e);
@@ -2043,7 +2043,7 @@ async function loadNeighborhoodAnalytics() {
         const datalist = document.getElementById('neighborhoodList');
         if (datalist) {
             datalist.innerHTML = d.neighborhoods.map(n =>
-                `<option value="${n.neighborhood}">${n.neighborhood} - ${n.city} (${n.listings_count})</option>`
+                `<option value="${esc(n.neighborhood)}">${esc(n.neighborhood)} - ${esc(n.city)} (${n.listings_count})</option>`
             ).join('');
         }
     } catch (e) {
@@ -2538,7 +2538,7 @@ async function loadMarketSummary() {
             try {
                 const cities = await api('/cities');
                 sel.innerHTML = '<option value="">All Cities</option>' +
-                    cities.cities.map(c => `<option value="${c.city}">${c.city}</option>`).join('');
+                    cities.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)}</option>`).join('');
             } catch (e) {}
         }
 
@@ -2648,9 +2648,10 @@ function findDuplicates() {
     const tbody = document.getElementById('dupesBody');
     tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><div class="loading"><div class="spinner"></div>Scanning...</div></td></tr>';
 
+    const snapshot = [...data];
     setTimeout(() => {
         const groups = {};
-        for (const l of data) {
+        for (const l of snapshot) {
             if (!l.city || !l.rooms) continue;
             const key = `${(l.city||'').toLowerCase()}|${(l.neighborhood||'').toLowerCase()}|${l.rooms}`;
             if (!groups[key]) groups[key] = [];
@@ -3032,7 +3033,7 @@ function renderPresets() {
     const el = document.getElementById('listingsPresets');
     el.innerHTML = S.presets.map((p, i) => `
         <button class="preset-btn" onclick="applyPreset(${i})">
-            ${p.name}
+            ${esc(p.name)}
             <span onclick="event.stopPropagation();deletePreset(${i})" style="opacity:0.5;margin-right:4px;cursor:pointer;">&#215;</span>
         </button>
     `).join('');
@@ -3505,7 +3506,7 @@ async function loadMapData() {
             try {
                 const cities = await api('/cities');
                 sel.innerHTML = '<option value="">All Cities</option>' +
-                    cities.cities.map(c => `<option value="${c.city}">${c.city}</option>`).join('');
+                    cities.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)}</option>`).join('');
             } catch (e) {}
         }
 
