@@ -180,6 +180,22 @@ def init_db():
             );
         """)
 
+        # Alert subscriptions table — Telegram alerts for saved filters
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alert_subscriptions (
+                id SERIAL PRIMARY KEY,
+                chat_id VARCHAR(50) NOT NULL,
+                city VARCHAR(100),
+                neighborhood VARCHAR(100),
+                max_price INTEGER,
+                min_rooms REAL,
+                label VARCHAR(255),
+                notify_new BOOLEAN DEFAULT TRUE,
+                notify_price_drop BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
         conn.commit()
         cur.close()
     finally:
@@ -372,6 +388,116 @@ def notify_scrape_summary(run_id: int, run_type: str, pages: int, total_pages: i
     send_telegram(msg)
 
 
+def send_subscription_alerts(new_listings: list[dict], price_changed_listings: list[dict]):
+    """Check alert subscriptions and send Telegram notifications for matching listings."""
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    if not new_listings and not price_changed_listings:
+        return
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, chat_id, city, neighborhood, max_price, min_rooms, label, notify_new, notify_price_drop FROM alert_subscriptions")
+        subs = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
+
+    if not subs:
+        return
+
+    for sub_id, chat_id, sub_city, sub_neighborhood, max_price, min_rooms, label, notify_new, notify_price_drop in subs:
+        # Check new listings
+        if notify_new and new_listings:
+            matches = []
+            for l in new_listings:
+                if not _listing_matches_sub(l, sub_city, sub_neighborhood, max_price, min_rooms):
+                    continue
+                matches.append(l)
+
+            if matches:
+                _send_sub_alert(chat_id, label, "new", matches)
+
+        # Check price-changed listings
+        if notify_price_drop and price_changed_listings:
+            matches = []
+            for l in price_changed_listings:
+                if not _listing_matches_sub(l, sub_city, sub_neighborhood, max_price, min_rooms):
+                    continue
+                matches.append(l)
+
+            if matches:
+                _send_sub_alert(chat_id, label, "price_change", matches)
+
+
+def _listing_matches_sub(listing: dict, sub_city: str, sub_neighborhood: str,
+                         max_price: int, min_rooms: float) -> bool:
+    """Check if a listing matches a subscription filter."""
+    if sub_city and sub_city.lower() not in (listing.get("city") or "").lower():
+        return False
+    if sub_neighborhood and sub_neighborhood.lower() not in (listing.get("neighborhood") or "").lower():
+        return False
+    if max_price:
+        price = listing.get("price_numeric")
+        if not price or price > max_price:
+            return False
+    if min_rooms:
+        try:
+            rooms = float(listing.get("rooms") or 0)
+            if rooms < min_rooms:
+                return False
+        except (ValueError, TypeError):
+            return False
+    return True
+
+
+def _send_sub_alert(chat_id: str, label: str, alert_type: str, listings: list[dict]):
+    """Send a subscription alert to a specific chat_id."""
+    if not TELEGRAM_BOT_TOKEN:
+        return
+
+    count = len(listings)
+    if alert_type == "new":
+        header = f"🏠 <b>{count} New Listing{'s' if count > 1 else ''}</b>"
+    else:
+        header = f"💰 <b>{count} Price Change{'s' if count > 1 else ''}</b>"
+
+    msg = f"{header}\n📋 Filter: {label}\n\n"
+
+    # Show up to 5 listings
+    for l in listings[:5]:
+        location = ", ".join(filter(None, [l.get("city", ""), l.get("neighborhood", ""), l.get("street", "")]))
+        rooms = l.get("rooms", "?")
+        price = l.get("price_numeric")
+        price_str = f"₪{price:,}" if price else "N/A"
+        link_token = l.get("link_token") or l.get("id", "")
+        link = f"https://www.yad2.co.il/item/{link_token}"
+
+        if alert_type == "price_change" and l.get("old_price"):
+            old_p = l["old_price"]
+            drop = old_p - price if price else 0
+            msg += f"• {location}\n  {rooms} rooms | {old_p:,} → <b>{price_str}</b> (-{drop:,})\n  <a href=\"{link}\">View</a>\n\n"
+        else:
+            msg += f"• {location}\n  {rooms} rooms | <b>{price_str}</b>\n  <a href=\"{link}\">View</a>\n\n"
+
+    if count > 5:
+        msg += f"... and {count - 5} more"
+
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": msg,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": "true"
+        }).encode()
+        req = urllib.request.Request(url, data=data)
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        logger.warning(f"Subscription alert send failed for chat {chat_id}: {e}")
+
+
 # ─── LISTINGS DB ────────────────────────────────────────────────────────────────
 
 def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
@@ -387,6 +513,8 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
         new_count = 0
         updated_count = 0
         price_changes = 0
+        new_listings_for_alert = []
+        price_changed_for_alert = []
 
         for listing in listings:
             # Parse price to numeric
@@ -428,6 +556,11 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                     """, (listing["id"], price_str, price_numeric, now, run_id))
                     price_changes += 1
                     logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
+
+                    # Track for subscription alerts
+                    price_changed_for_alert.append({
+                        **listing, "price_numeric": price_numeric, "old_price": old_price
+                    })
 
                     # Notify on price drops
                     if price_numeric < old_price:
@@ -505,6 +638,7 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                     now
                 ))
                 new_count += 1
+                new_listings_for_alert.append({**listing, "price_numeric": price_numeric})
 
                 # Record initial price in history
                 if price_numeric is not None:
@@ -517,6 +651,12 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
         cur.close()
     finally:
         conn.close()
+
+    # Send subscription-based Telegram alerts
+    try:
+        send_subscription_alerts(new_listings_for_alert, price_changed_for_alert)
+    except Exception as e:
+        logger.warning(f"Subscription alerts failed: {e}")
 
     return new_count, updated_count, price_changes
 

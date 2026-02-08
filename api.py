@@ -88,6 +88,42 @@ def ensure_price_history_table():
             put_db(conn)
 
 
+_alert_subs_initialized = False
+
+
+def ensure_alert_subscriptions_table():
+    """Create alert_subscriptions table if it doesn't exist."""
+    global _alert_subs_initialized
+    if _alert_subs_initialized:
+        return
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS alert_subscriptions (
+                id SERIAL PRIMARY KEY,
+                chat_id VARCHAR(50) NOT NULL,
+                city VARCHAR(100),
+                neighborhood VARCHAR(100),
+                max_price INTEGER,
+                min_rooms REAL,
+                label VARCHAR(255),
+                notify_new BOOLEAN DEFAULT TRUE,
+                notify_price_drop BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        conn.commit()
+        cur.close()
+        _alert_subs_initialized = True
+    except Exception as e:
+        logging.warning(f"Error creating alert_subscriptions table: {e}")
+    finally:
+        if conn:
+            put_db(conn)
+
+
 @app.route("/")
 def index():
     return redirect("/dashboard")
@@ -1265,6 +1301,104 @@ def price_drop_leaderboard():
         "summary": summary,
         "neighborhoods": neighborhoods
     })
+
+
+# ─── ALERT SUBSCRIPTIONS ─────────────────────────────────────────────────────
+
+@app.route("/alerts/subscriptions", methods=["GET"])
+def list_subscriptions():
+    """List all alert subscriptions for a chat_id."""
+    ensure_alert_subscriptions_table()
+    chat_id = request.args.get("chat_id")
+    if not chat_id:
+        return jsonify({"error": "chat_id required"}), 400
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, chat_id, city, neighborhood, max_price, min_rooms, label, notify_new, notify_price_drop, created_at "
+            "FROM alert_subscriptions WHERE chat_id = %s ORDER BY created_at DESC",
+            (chat_id,)
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return jsonify([{
+            "id": r["id"], "chat_id": r["chat_id"], "city": r["city"], "neighborhood": r["neighborhood"],
+            "max_price": r["max_price"], "min_rooms": float(r["min_rooms"]) if r["min_rooms"] else None,
+            "label": r["label"], "notify_new": r["notify_new"], "notify_price_drop": r["notify_price_drop"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None
+        } for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/alerts/subscribe", methods=["POST"])
+def subscribe_alert():
+    """Create a new alert subscription."""
+    ensure_alert_subscriptions_table()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    chat_id = data.get("chat_id")
+    if not chat_id:
+        return jsonify({"error": "chat_id required"}), 400
+
+    city = data.get("city") or None
+    neighborhood = data.get("neighborhood") or None
+    max_price = data.get("maxPrice") or data.get("max_price") or None
+    min_rooms = data.get("minRooms") or data.get("min_rooms") or None
+    label = data.get("label", "")
+    notify_new = data.get("notify_new", True)
+    notify_price_drop = data.get("notify_price_drop", True)
+
+    if not any([city, neighborhood, max_price, min_rooms]):
+        return jsonify({"error": "At least one filter required"}), 400
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO alert_subscriptions (chat_id, city, neighborhood, max_price, min_rooms, label, notify_new, notify_price_drop)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, created_at
+        """, (chat_id, city, neighborhood, max_price, min_rooms, label, notify_new, notify_price_drop))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        return jsonify({"id": row["id"], "created_at": row["created_at"].isoformat() if row["created_at"] else None, "message": "Subscribed"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route("/alerts/subscriptions/<int:sub_id>", methods=["DELETE"])
+def unsubscribe_alert(sub_id):
+    """Delete an alert subscription."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM alert_subscriptions WHERE id = %s RETURNING id", (sub_id,))
+        deleted = cur.fetchone()
+        conn.commit()
+        cur.close()
+        if not deleted:
+            return jsonify({"error": "Subscription not found"}), 404
+        return jsonify({"message": "Unsubscribed", "id": sub_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 if __name__ == "__main__":

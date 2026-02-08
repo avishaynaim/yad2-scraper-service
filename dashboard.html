@@ -3933,6 +3933,45 @@ function deleteAlert(idx) {
     renderAlerts();
 }
 
+const TELEGRAM_CHAT_ID = '2018339906';
+
+async function subscribeTelegram(alertIdx) {
+    const a = savedAlerts[alertIdx];
+    if (!a) return;
+    try {
+        const resp = await fetch(API + '/alerts/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: TELEGRAM_CHAT_ID,
+                city: a.city || null,
+                neighborhood: a.neighborhood || null,
+                maxPrice: a.maxPrice || null,
+                minRooms: a.minRooms || null,
+                label: a.label
+            })
+        });
+        const d = await resp.json();
+        if (d.error) { toast(d.error); return; }
+        savedAlerts[alertIdx].telegram_sub_id = d.id;
+        localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
+        renderAlerts();
+        toast(t('Subscribed to Telegram alerts'));
+    } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function unsubscribeTelegram(alertIdx, subId) {
+    try {
+        const resp = await fetch(API + '/alerts/subscriptions/' + subId, { method: 'DELETE' });
+        const d = await resp.json();
+        if (d.error) { toast(d.error); return; }
+        delete savedAlerts[alertIdx].telegram_sub_id;
+        localStorage.setItem('yad2_alerts', JSON.stringify(savedAlerts));
+        renderAlerts();
+        toast(t('Unsubscribed from Telegram alerts'));
+    } catch(e) { toast('Error: ' + e.message); }
+}
+
 function renderAlerts() {
     const list = document.getElementById('savedAlertsList');
     document.getElementById('alertsBadge').textContent = savedAlerts.length;
@@ -3944,15 +3983,23 @@ function renderAlerts() {
         return;
     }
 
-    list.innerHTML = savedAlerts.map((a, i) => `
+    list.innerHTML = savedAlerts.map((a, i) => {
+        const subId = a.telegram_sub_id;
+        const subBtn = subId
+            ? `<button class="preset-btn" onclick="unsubscribeTelegram(${i}, ${subId})" style="color:var(--warning);" title="${t('Unsubscribe')}">&#128276; ${t('Subscribed')}</button>`
+            : `<button class="preset-btn" onclick="subscribeTelegram(${i})" style="color:var(--info);" title="${t('Subscribe to Telegram')}">&#128276; ${t('Subscribe')}</button>`;
+        return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--gray-100);">
             <div>
-                <span style="font-weight:600;font-size:0.8125rem;color:var(--gray-700);">${a.label}</span>
-                <span style="font-size:0.625rem;color:var(--gray-400);margin-right:0.5rem;">created ${fmtD(a.created)}</span>
+                <span style="font-weight:600;font-size:0.8125rem;color:var(--gray-700);">${esc(a.label)}</span>
+                <span style="font-size:0.625rem;color:var(--gray-400);margin-right:0.5rem;">${t('created')} ${fmtD(a.created)}</span>
             </div>
-            <button class="preset-btn" onclick="deleteAlert(${i})" style="color:var(--danger);">Delete</button>
-        </div>
-    `).join('');
+            <div style="display:flex;gap:0.5rem;">
+                ${subBtn}
+                <button class="preset-btn" onclick="deleteAlert(${i})" style="color:var(--danger);">${t('Delete')}</button>
+            </div>
+        </div>`;
+    }).join('');
 
     // Find matching listings
     const matches = [];
@@ -4252,6 +4299,11 @@ const HE = {
     'No price drops':'אין ירידות מחיר',
     'Subscribe to Telegram':'הרשם לטלגרם','Unsubscribe':'בטל הרשמה',
     'No neighborhoods with 2+ price drops':'אין שכונות עם 2+ ירידות מחיר',
+    'Subscribe':'הרשמה לטלגרם','Subscribed':'רשום','Unsubscribe':'בטל הרשמה',
+    'Subscribe to Telegram':'הרשם להתראות טלגרם',
+    'Subscribed to Telegram alerts':'נרשמת להתראות טלגרם',
+    'Unsubscribed from Telegram alerts':'הרשמה לטלגרם בוטלה',
+    'created':'נוצר',
 };
 
 let currentLang = localStorage.getItem('yad2_lang') || 'he';
