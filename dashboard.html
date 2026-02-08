@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="rtl" id="htmlRoot">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -817,6 +817,16 @@
             .kpi-value { font-size: 1.25rem; }
         }
 
+        /* RTL/LTR adjustments */
+        [dir="ltr"] table { text-align: left; }
+        [dir="rtl"] table { text-align: right; }
+        [dir="ltr"] .bar-label { text-align: right; }
+        [dir="rtl"] .bar-label { text-align: left; }
+        [dir="ltr"] .bar-count { text-align: left; }
+        [dir="rtl"] .bar-count { text-align: right; }
+        [dir="ltr"] .new-badge { margin-right: 0.25rem; margin-left: 0; }
+        [dir="rtl"] .new-badge { margin-left: 0.25rem; margin-right: 0; }
+
         /* Favorites */
         .fav-star { cursor: pointer; font-size: 1rem; opacity: 0.3; transition: var(--transition); user-select: none; }
         .fav-star:hover { opacity: 0.7; }
@@ -917,35 +927,36 @@
 <header class="header">
     <div class="header-content">
         <div class="header-left">
-            <h1>Yad2 Dashboard</h1>
+            <h1 data-i18n="Yad2 Dashboard">Yad2 Dashboard</h1>
             <div class="live-badge">
                 <span class="live-dot"></span>
-                <span id="liveStatus">Auto-refresh</span>
+                <span id="liveStatus" data-i18n="Auto-refresh">Auto-refresh</span>
             </div>
         </div>
         <div class="header-kpis" id="headerKpis">
             <div class="header-kpi">
                 <div class="header-kpi-value" id="hkTotal">--</div>
-                <div class="header-kpi-label">Active Listings</div>
+                <div class="header-kpi-label" data-i18n="Active Listings">Active Listings</div>
             </div>
             <div class="header-kpi">
                 <div class="header-kpi-value" id="hkCities">--</div>
-                <div class="header-kpi-label">Cities</div>
+                <div class="header-kpi-label" data-i18n="Cities">Cities</div>
             </div>
             <div class="header-kpi">
                 <div class="header-kpi-value" id="hkAvgPrice">--</div>
-                <div class="header-kpi-label">Avg Price</div>
+                <div class="header-kpi-label" data-i18n="Avg Price">Avg Price</div>
             </div>
             <div class="header-kpi">
                 <div class="header-kpi-value" id="hkChanges">--</div>
-                <div class="header-kpi-label">Price Changes 24h</div>
+                <div class="header-kpi-label" data-i18n="Price Changes 24h">Price Changes 24h</div>
             </div>
             <div class="header-kpi" id="hkNewSinceVisit" style="display:none;">
                 <div class="header-kpi-value" id="hkNewCount" style="color:#34d399;">--</div>
-                <div class="header-kpi-label">New Since Visit</div>
+                <div class="header-kpi-label" data-i18n="New Since Visit">New Since Visit</div>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.75rem;">
+            <button class="dark-toggle" onclick="toggleLang()" id="langToggle" title="Switch language">EN</button>
             <button class="dark-toggle" onclick="toggleDarkMode()" id="darkToggle" title="Toggle dark mode">Dark</button>
             <span class="dark-toggle" style="cursor:help;font-size:0.625rem;" title="Keys: 1-9 switch tabs, R to refresh, Esc close modals">?</span>
             <div>
@@ -958,15 +969,15 @@
 
 <main class="container">
     <div class="tabs">
-        <button class="tab active" data-tab="overview">Overview<span class="tab-badge" id="overviewBadge">--</span></button>
-        <button class="tab" data-tab="listings">Listings<span class="tab-badge" id="listingsBadge">0</span></button>
-        <button class="tab" data-tab="price-changes">Price Changes<span class="tab-badge" id="priceChangesBadge">0</span></button>
-        <button class="tab" data-tab="analytics">Analytics<span class="tab-badge" id="analyticsBadge">0</span></button>
-        <button class="tab" data-tab="deals">Deals<span class="tab-badge" id="dealsBadge">0</span></button>
-        <button class="tab" data-tab="map">Map<span class="tab-badge" id="mapBadge">0</span></button>
-        <button class="tab" data-tab="alerts">Alerts<span class="tab-badge" id="alertsBadge">0</span></button>
-        <button class="tab" data-tab="favorites">Favorites<span class="tab-badge" id="favoritesBadge">0</span></button>
-        <button class="tab" data-tab="runs">Scrape History<span class="tab-badge" id="runsBadge">0</span></button>
+        <button class="tab active" data-tab="overview"><span data-i18n="Overview">Overview</span><span class="tab-badge" id="overviewBadge">--</span></button>
+        <button class="tab" data-tab="listings"><span data-i18n="Listings">Listings</span><span class="tab-badge" id="listingsBadge">0</span></button>
+        <button class="tab" data-tab="price-changes"><span data-i18n="Price Changes">Price Changes</span><span class="tab-badge" id="priceChangesBadge">0</span></button>
+        <button class="tab" data-tab="analytics"><span data-i18n="Analytics">Analytics</span><span class="tab-badge" id="analyticsBadge">0</span></button>
+        <button class="tab" data-tab="deals"><span data-i18n="Deals">Deals</span><span class="tab-badge" id="dealsBadge">0</span></button>
+        <button class="tab" data-tab="map"><span data-i18n="Map">Map</span><span class="tab-badge" id="mapBadge">0</span></button>
+        <button class="tab" data-tab="alerts"><span data-i18n="Alerts">Alerts</span><span class="tab-badge" id="alertsBadge">0</span></button>
+        <button class="tab" data-tab="favorites"><span data-i18n="Favorites">Favorites</span><span class="tab-badge" id="favoritesBadge">0</span></button>
+        <button class="tab" data-tab="runs"><span data-i18n="Scrape History">Scrape History</span><span class="tab-badge" id="runsBadge">0</span></button>
     </div>
 
     <!-- Overview Panel -->
@@ -976,72 +987,72 @@
         <div class="analytics-grid" id="kpiGrid">
             <div class="kpi-card accent-primary">
                 <div class="kpi-value" id="kpiActive">--</div>
-                <div class="kpi-label">Active Listings</div>
+                <div class="kpi-label" data-i18n="Active Listings">Active Listings</div>
             </div>
             <div class="kpi-card accent-info">
                 <div class="kpi-value" id="kpiTotal">--</div>
-                <div class="kpi-label">Total Ever Seen</div>
+                <div class="kpi-label" data-i18n="Total Ever Seen">Total Ever Seen</div>
             </div>
             <div class="kpi-card accent-success">
                 <div class="kpi-value" id="kpiAvg">--</div>
-                <div class="kpi-label">Avg Price</div>
+                <div class="kpi-label" data-i18n="Avg Price">Avg Price</div>
             </div>
             <div class="kpi-card accent-warning">
                 <div class="kpi-value" id="kpiMin">--</div>
-                <div class="kpi-label">Min Price</div>
+                <div class="kpi-label" data-i18n="Min Price">Min Price</div>
             </div>
             <div class="kpi-card accent-danger">
                 <div class="kpi-value" id="kpiMax">--</div>
-                <div class="kpi-label">Max Price</div>
+                <div class="kpi-label" data-i18n="Max Price">Max Price</div>
             </div>
             <div class="kpi-card accent-info">
                 <div class="kpi-value" id="kpiCities">--</div>
-                <div class="kpi-label">Cities</div>
+                <div class="kpi-label" data-i18n="Cities">Cities</div>
             </div>
             <div class="kpi-card accent-primary">
                 <div class="kpi-value" id="kpiNeighborhoods">--</div>
-                <div class="kpi-label">Neighborhoods</div>
+                <div class="kpi-label" data-i18n="Neighborhoods">Neighborhoods</div>
             </div>
             <div class="kpi-card accent-warning">
                 <div class="kpi-value" id="kpiChanges7d">--</div>
-                <div class="kpi-label">Price Changes 7d</div>
+                <div class="kpi-label" data-i18n="Price Changes 7d">Price Changes 7d</div>
             </div>
             <div class="kpi-card accent-success">
                 <div class="kpi-value" id="kpiNew24h">--</div>
-                <div class="kpi-label">New 24h</div>
+                <div class="kpi-label" data-i18n="New 24h">New 24h</div>
             </div>
             <div class="kpi-card accent-info">
                 <div class="kpi-value" id="kpiNew7d">--</div>
-                <div class="kpi-label">New 7d</div>
+                <div class="kpi-label" data-i18n="New 7d">New 7d</div>
             </div>
         </div>
 
         <div class="charts-row">
             <div class="chart-card">
-                <div class="chart-card-header">Top Cities</div>
+                <div class="chart-card-header" data-i18n="Top Cities">Top Cities</div>
                 <div class="chart-card-body" id="topCitiesChart"></div>
             </div>
             <div class="chart-card">
-                <div class="chart-card-header">Rooms Distribution</div>
+                <div class="chart-card-header" data-i18n="Rooms Distribution">Rooms Distribution</div>
                 <div class="chart-card-body" id="roomsChart"></div>
             </div>
         </div>
 
         <div class="charts-row">
             <div class="chart-card">
-                <div class="chart-card-header">Recent Scrape Runs</div>
+                <div class="chart-card-header" data-i18n="Recent Scrape Runs">Recent Scrape Runs</div>
                 <div class="chart-card-body" id="recentRunsChart"></div>
             </div>
             <div class="chart-card">
-                <div class="chart-card-header">Latest Price Drops</div>
+                <div class="chart-card-header" data-i18n="Latest Price Drops">Latest Price Drops</div>
                 <div class="chart-card-body" id="latestDropsChart"></div>
             </div>
         </div>
 
         <div class="card" style="margin-top:1rem;">
             <div class="card-header">
-                <h2 class="card-title">Telegram Notifications</h2>
-                <button class="preset-btn" onclick="testTelegram()" id="telegramTestBtn">Send Test</button>
+                <h2 class="card-title" data-i18n="Telegram Notifications">Telegram Notifications</h2>
+                <button class="preset-btn" onclick="testTelegram()" id="telegramTestBtn" data-i18n="Send Test">Send Test</button>
             </div>
             <div style="padding:1rem 1.25rem;">
                 <div id="telegramStatus" style="font-size:0.8125rem;color:var(--gray-600);">Checking...</div>
@@ -1057,16 +1068,16 @@
     <div class="panel" id="listings-panel">
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Listings</h2>
+                <h2 class="card-title" data-i18n="Listings">Listings</h2>
                 <div class="filter-toolbar">
                     <div class="quick-search">
-                        <input type="text" id="listingsSearch" placeholder="Search city, street, neighborhood..." oninput="onQuickSearch()">
+                        <input type="text" id="listingsSearch" placeholder="Search city, street, neighborhood..." data-i18n-placeholder="Search city, street, neighborhood..." oninput="onQuickSearch()">
                     </div>
                     <div id="listingsPresets"></div>
-                    <button class="preset-btn" onclick="savePreset()">Save Filter</button>
+                    <button class="preset-btn" onclick="savePreset()" data-i18n="Save Filter">Save Filter</button>
                     <button class="btn-export" onclick="exportCSV()">&#8681; CSV</button>
                     <button class="preset-btn" id="compareBtn" onclick="showCompareModal()" style="display:none;">Compare (<span id="compareCnt">0</span>)</button>
-                    <button class="preset-btn" onclick="clearAllFilters()">Clear All</button>
+                    <button class="preset-btn" onclick="clearAllFilters()" data-i18n="Clear All">Clear All</button>
                 </div>
             </div>
             <div class="active-filters-bar">
@@ -1142,8 +1153,8 @@
                                     <div class="th-label" onclick="sortListings('first_seen_at')">Added <span class="sort-icon" data-sort="first_seen_at">&#9650;</span></div>
                                 </div>
                             </th>
-                            <th>Days</th>
-                            <th>Link</th>
+                            <th data-i18n="Days">Days</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="listingsBody"></tbody>
@@ -1171,26 +1182,26 @@
         <div class="analytics-grid">
             <div class="kpi-card accent-primary">
                 <div class="kpi-value" id="pcTotal">--</div>
-                <div class="kpi-label">Total Changes (30d)</div>
+                <div class="kpi-label" data-i18n="Total Changes (30d)">Total Changes (30d)</div>
             </div>
             <div class="kpi-card accent-success">
                 <div class="kpi-value" id="pcDrops">--</div>
-                <div class="kpi-label">Price Drops</div>
+                <div class="kpi-label" data-i18n="Price Drops">Price Drops</div>
             </div>
             <div class="kpi-card accent-danger">
                 <div class="kpi-value" id="pcRaises">--</div>
-                <div class="kpi-label">Price Raises</div>
+                <div class="kpi-label" data-i18n="Price Raises">Price Raises</div>
             </div>
             <div class="kpi-card accent-info">
                 <div class="kpi-value" id="pcAvg">--</div>
-                <div class="kpi-label">Avg Change</div>
+                <div class="kpi-label" data-i18n="Avg Change">Avg Change</div>
             </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Price Changes</h2>
-                <button class="preset-btn" onclick="clearPriceChangeFilters()">Clear Filters</button>
+                <h2 class="card-title" data-i18n="Price Changes">Price Changes</h2>
+                <button class="preset-btn" onclick="clearPriceChangeFilters()" data-i18n="Clear Filters">Clear Filters</button>
             </div>
             <div class="table-container">
                 <table>
@@ -1202,21 +1213,21 @@
                                     <div class="multi-select" data-col="city" data-tbl="priceChanges"></div>
                                 </div>
                             </th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Old Price</th>
-                            <th>New Price</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Old Price">Old Price</th>
+                            <th data-i18n="New Price">New Price</th>
                             <th>
                                 <div class="th-content">
                                     <div class="th-label">Direction</div>
                                     <div class="multi-select" data-col="direction" data-tbl="priceChanges"></div>
                                 </div>
                             </th>
-                            <th>Change</th>
-                            <th>Change %</th>
-                            <th>Date</th>
-                            <th>Link</th>
+                            <th data-i18n="Change">Change</th>
+                            <th data-i18n="Change %">Change %</th>
+                            <th data-i18n="Date">Date</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="priceChangesBody"></tbody>
@@ -1233,13 +1244,13 @@
     <div class="panel" id="analytics-panel">
         <div class="charts-row">
             <div class="chart-card">
-                <div class="chart-card-header">Price Trends (30 days)</div>
+                <div class="chart-card-header" data-i18n="Price Trends (30 days)">Price Trends (30 days)</div>
                 <div class="chart-card-body" id="priceTrendsChart" style="min-height:150px;">
                     <div class="loading"><div class="spinner"></div>Loading...</div>
                 </div>
             </div>
             <div class="chart-card">
-                <div class="chart-card-header">Daily Price Changes</div>
+                <div class="chart-card-header" data-i18n="Daily Price Changes">Daily Price Changes</div>
                 <div class="chart-card-body" id="dailyChangesChart" style="min-height:150px;">
                     <div class="loading"><div class="spinner"></div>Loading...</div>
                 </div>
@@ -1248,7 +1259,7 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Neighborhood Price Comparison</h2>
+                <h2 class="card-title" data-i18n="Neighborhood Price Comparison">Neighborhood Price Comparison</h2>
                 <div class="filter-toolbar">
                     <select id="analyticsCityFilter" onchange="loadNeighborhoodAnalytics()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                         <option value="">All Cities</option>
@@ -1277,20 +1288,20 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Price Drop Leaderboard</h2>
+                <h2 class="card-title" data-i18n="Price Drop Leaderboard">Price Drop Leaderboard</h2>
                 <span style="font-size:0.6875rem;color:var(--gray-400);">Neighborhoods with the most price drops (30 days)</span>
             </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Drops</th>
-                            <th>Listings</th>
-                            <th>Avg Drop</th>
-                            <th>Avg %</th>
-                            <th>Biggest</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Drops">Drops</th>
+                            <th data-i18n="Listings">Listings</th>
+                            <th data-i18n="Avg Drop">Avg Drop</th>
+                            <th data-i18n="Avg %">Avg %</th>
+                            <th data-i18n="Biggest">Biggest</th>
                         </tr>
                     </thead>
                     <tbody id="priceDropBody">
@@ -1303,21 +1314,21 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Compare Neighborhoods</h2>
+                <h2 class="card-title" data-i18n="Compare Neighborhoods">Compare Neighborhoods</h2>
             </div>
             <div style="padding:1rem 1.25rem;">
                 <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
                     <div style="flex:1;min-width:150px;">
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 1</label>
-                        <input type="text" id="compareN1" list="neighborhoodList" placeholder="e.g. Florentin" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Neighborhood 1">Neighborhood 1</label>
+                        <input type="text" id="compareN1" list="neighborhoodList" placeholder="e.g. Florentin" data-i18n-placeholder="e.g. Florentin" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                     </div>
                     <div style="flex:1;min-width:150px;">
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood 2</label>
-                        <input type="text" id="compareN2" list="neighborhoodList" placeholder="e.g. Neve Tzedek" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Neighborhood 2">Neighborhood 2</label>
+                        <input type="text" id="compareN2" list="neighborhoodList" placeholder="e.g. Neve Tzedek" data-i18n-placeholder="e.g. Neve Tzedek" style="width:100%;padding:0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                     </div>
                     <datalist id="neighborhoodList"></datalist>
                     <div style="display:flex;align-items:flex-end;">
-                        <button class="btn btn-primary" onclick="compareNeighborhoods()">Compare</button>
+                        <button class="btn btn-primary" onclick="compareNeighborhoods()" data-i18n="Compare">Compare</button>
                     </div>
                 </div>
                 <div id="compareResult"></div>
@@ -1330,27 +1341,27 @@
         <div class="analytics-grid">
             <div class="kpi-card accent-success">
                 <div class="kpi-value" id="dealsCount">--</div>
-                <div class="kpi-label">Deals Found</div>
+                <div class="kpi-label" data-i18n="Deals Found">Deals Found</div>
             </div>
             <div class="kpi-card accent-primary">
                 <div class="kpi-value" id="dealsAvgDiscount">--</div>
-                <div class="kpi-label">Avg Discount</div>
+                <div class="kpi-label" data-i18n="Avg Discount">Avg Discount</div>
             </div>
             <div class="kpi-card accent-info">
                 <div class="kpi-value" id="dealsBestDiscount">--</div>
-                <div class="kpi-label">Best Deal</div>
+                <div class="kpi-label" data-i18n="Best Deal">Best Deal</div>
             </div>
         </div>
 
         <div class="charts-row">
             <div class="chart-card">
-                <div class="chart-card-header">Price Distribution</div>
+                <div class="chart-card-header" data-i18n="Price Distribution">Price Distribution</div>
                 <div class="chart-card-body" id="priceDistChart">
                     <div class="loading"><div class="spinner"></div>Loading...</div>
                 </div>
             </div>
             <div class="chart-card">
-                <div class="chart-card-header">Cheapest vs Expensive Neighborhoods</div>
+                <div class="chart-card-header" data-i18n="Cheapest vs Expensive Neighborhoods">Cheapest vs Expensive Neighborhoods</div>
                 <div class="chart-card-body" id="neighborhoodCompareChart">
                     <div class="loading"><div class="spinner"></div>Loading...</div>
                 </div>
@@ -1359,16 +1370,16 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Best Deals - Below Neighborhood Average</h2>
+                <h2 class="card-title" data-i18n="Best Deals - Below Neighborhood Average">Best Deals - Below Neighborhood Average</h2>
                 <div class="filter-toolbar">
                     <select id="dealsCityFilter" onchange="loadDeals()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                         <option value="">All Cities</option>
                     </select>
                     <select id="dealsDiscountFilter" onchange="loadDeals()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
-                        <option value="10">10%+ below avg</option>
-                        <option value="15" selected>15%+ below avg</option>
-                        <option value="20">20%+ below avg</option>
-                        <option value="25">25%+ below avg</option>
+                        <option value="10" data-i18n="10%+ below avg">10%+ below avg</option>
+                        <option value="15" selected data-i18n="15%+ below avg">15%+ below avg</option>
+                        <option value="20" data-i18n="20%+ below avg">20%+ below avg</option>
+                        <option value="25" data-i18n="25%+ below avg">25%+ below avg</option>
                     </select>
                 </div>
             </div>
@@ -1377,17 +1388,17 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Area Avg</th>
-                            <th>Discount</th>
-                            <th>Sqm</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Area Avg">Area Avg</th>
+                            <th data-i18n="Discount">Discount</th>
+                            <th data-i18n="Sqm">Sqm</th>
                             <th>&#8362;/sqm</th>
-                            <th>Type</th>
-                            <th>Link</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="dealsBody"></tbody>
@@ -1397,13 +1408,13 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Stale Listings - Longest on Market</h2>
+                <h2 class="card-title" data-i18n="Stale Listings - Longest on Market">Stale Listings - Longest on Market</h2>
                 <div class="filter-toolbar">
                     <select id="staleDaysFilter" onchange="loadStaleListings()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
-                        <option value="7">7+ days</option>
-                        <option value="14" selected>14+ days</option>
-                        <option value="30">30+ days</option>
-                        <option value="60">60+ days</option>
+                        <option value="7" data-i18n="7+ days">7+ days</option>
+                        <option value="14" selected data-i18n="14+ days">14+ days</option>
+                        <option value="30" data-i18n="30+ days">30+ days</option>
+                        <option value="60" data-i18n="60+ days">60+ days</option>
                     </select>
                 </div>
             </div>
@@ -1415,15 +1426,15 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Sqm</th>
-                            <th>Days</th>
-                            <th>Type</th>
-                            <th>Link</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Sqm">Sqm</th>
+                            <th data-i18n="Days">Days</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="staleBody"></tbody>
@@ -1432,9 +1443,9 @@
         </div>
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Possible Duplicates</h2>
+                <h2 class="card-title" data-i18n="Possible Duplicates">Possible Duplicates</h2>
                 <div class="filter-toolbar">
-                    <button class="btn btn-secondary" onclick="findDuplicates()">Scan for Duplicates</button>
+                    <button class="btn btn-secondary" onclick="findDuplicates()" data-i18n="Scan for Duplicates">Scan for Duplicates</button>
                     <span id="dupeCount" style="font-size:0.6875rem;color:var(--gray-500);"></span>
                 </div>
             </div>
@@ -1445,16 +1456,16 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Group</th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Sqm</th>
-                            <th>Type</th>
-                            <th>Days</th>
-                            <th>Link</th>
+                            <th data-i18n="Group">Group</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Sqm">Sqm</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Days">Days</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="dupesBody"><tr><td colspan="10" class="empty-state">Click "Scan for Duplicates" to analyze</td></tr></tbody>
@@ -1467,7 +1478,7 @@
     <div class="panel" id="map-panel">
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Price Map</h2>
+                <h2 class="card-title" data-i18n="Price Map">Price Map</h2>
                 <div class="filter-toolbar">
                     <select id="mapCityFilter" onchange="loadMapData()" style="padding:0.375rem 0.625rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;">
                         <option value="">All Cities</option>
@@ -1486,29 +1497,29 @@
     <div class="panel" id="alerts-panel">
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Saved Searches</h2>
-                <button class="btn btn-primary" onclick="showAddAlertForm()">+ New Alert</button>
+                <h2 class="card-title" data-i18n="Saved Searches">Saved Searches</h2>
+                <button class="btn btn-primary" onclick="showAddAlertForm()" data-i18n="+ New Alert">+ New Alert</button>
             </div>
             <div id="addAlertForm" style="display:none;padding:1rem 1.25rem;border-bottom:1px solid var(--gray-100);">
                 <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
                     <div>
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">City</label>
-                        <input type="text" id="alertCity" placeholder="Any city" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="City">City</label>
+                        <input type="text" id="alertCity" placeholder="Any city" data-i18n-placeholder="Any city" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
                     </div>
                     <div>
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Max Price</label>
-                        <input type="number" id="alertMaxPrice" placeholder="e.g. 5000" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:100px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Max Price">Max Price</label>
+                        <input type="number" id="alertMaxPrice" placeholder="e.g. 5000" data-i18n-placeholder="e.g. 5000" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:100px;">
                     </div>
                     <div>
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Min Rooms</label>
-                        <input type="number" id="alertMinRooms" placeholder="e.g. 3" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:80px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Min Rooms">Min Rooms</label>
+                        <input type="number" id="alertMinRooms" placeholder="e.g. 3" data-i18n-placeholder="e.g. 3" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:80px;">
                     </div>
                     <div>
-                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;">Neighborhood</label>
-                        <input type="text" id="alertNeighborhood" list="neighborhoodList" placeholder="Any" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
+                        <label style="font-size:0.6875rem;color:var(--gray-500);display:block;margin-bottom:0.25rem;" data-i18n="Neighborhood">Neighborhood</label>
+                        <input type="text" id="alertNeighborhood" list="neighborhoodList" placeholder="Any" data-i18n-placeholder="Any" style="padding:0.375rem 0.5rem;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:0.8125rem;width:120px;">
                     </div>
-                    <button class="btn btn-primary" onclick="saveAlert()">Save</button>
-                    <button class="btn btn-secondary" onclick="hideAddAlertForm()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveAlert()" data-i18n="Save">Save</button>
+                    <button class="btn btn-secondary" onclick="hideAddAlertForm()" data-i18n="Cancel">Cancel</button>
                 </div>
             </div>
             <div id="savedAlertsList" style="padding:1rem 1.25rem;"></div>
@@ -1516,7 +1527,7 @@
 
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Matching Listings</h2>
+                <h2 class="card-title" data-i18n="Matching Listings">Matching Listings</h2>
                 <span class="badge badge-info" id="alertMatchCount">0 matches</span>
             </div>
             <div class="table-container">
@@ -1524,15 +1535,15 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>Alert</th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Sqm</th>
-                            <th>Added</th>
-                            <th>Link</th>
+                            <th data-i18n="Alert">Alert</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Sqm">Sqm</th>
+                            <th data-i18n="Added">Added</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="alertMatchesBody"></tbody>
@@ -1546,17 +1557,17 @@
         <div id="favoritesStats" class="analytics-grid" style="margin-bottom:1rem;"></div>
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Bookmarked Listings</h2>
+                <h2 class="card-title" data-i18n="Bookmarked Listings">Bookmarked Listings</h2>
                 <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
                     <select class="note-status-select" id="favSortSelect" onchange="renderFavorites()" style="font-size:0.6875rem;">
-                        <option value="default">Sort: Default</option>
-                        <option value="price_asc">Price: Low to High</option>
-                        <option value="price_desc">Price: High to Low</option>
-                        <option value="status">By Status</option>
-                        <option value="newest">Newest First</option>
+                        <option value="default" data-i18n="Sort: Default">Sort: Default</option>
+                        <option value="price_asc" data-i18n="Price: Low to High">Price: Low to High</option>
+                        <option value="price_desc" data-i18n="Price: High to Low">Price: High to Low</option>
+                        <option value="status" data-i18n="By Status">By Status</option>
+                        <option value="newest" data-i18n="Newest First">Newest First</option>
                     </select>
-                    <button class="preset-btn" onclick="exportFavoritesWithNotes()">Export Notes</button>
-                    <button class="preset-btn" onclick="clearFavorites()">Clear All</button>
+                    <button class="preset-btn" onclick="exportFavoritesWithNotes()" data-i18n="Export Notes">Export Notes</button>
+                    <button class="preset-btn" onclick="clearFavorites()" data-i18n="Clear All">Clear All</button>
                 </div>
             </div>
             <div class="table-container">
@@ -1564,18 +1575,18 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>Status</th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Sqm</th>
-                            <th>Price/sqm</th>
-                            <th>Type</th>
-                            <th>Notes</th>
-                            <th>Added</th>
-                            <th>Link</th>
+                            <th data-i18n="Status">Status</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Sqm">Sqm</th>
+                            <th data-i18n="Price/sqm">Price/sqm</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Notes">Notes</th>
+                            <th data-i18n="Added">Added</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="favoritesBody"></tbody>
@@ -1584,8 +1595,8 @@
         </div>
         <div class="card" style="margin-top:1rem;">
             <div class="card-header">
-                <h2 class="card-title">Recommended for You</h2>
-                <button class="btn btn-secondary" onclick="findRecommendations()">Find Similar</button>
+                <h2 class="card-title" data-i18n="Recommended for You">Recommended for You</h2>
+                <button class="btn btn-secondary" onclick="findRecommendations()" data-i18n="Find Similar">Find Similar</button>
             </div>
             <div style="padding:0.5rem 1.25rem;">
                 <span style="font-size:0.625rem;color:var(--gray-400);">Based on your favorites: finds listings in the same cities, similar rooms & price range that you haven't bookmarked yet.</span>
@@ -1595,15 +1606,15 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>City</th>
-                            <th>Neighborhood</th>
-                            <th>Street</th>
-                            <th>Rooms</th>
-                            <th>Price</th>
-                            <th>Sqm</th>
-                            <th>Price/sqm</th>
-                            <th>Type</th>
-                            <th>Link</th>
+                            <th data-i18n="City">City</th>
+                            <th data-i18n="Neighborhood">Neighborhood</th>
+                            <th data-i18n="Street">Street</th>
+                            <th data-i18n="Rooms">Rooms</th>
+                            <th data-i18n="Price">Price</th>
+                            <th data-i18n="Sqm">Sqm</th>
+                            <th data-i18n="Price/sqm">Price/sqm</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Link">Link</th>
                         </tr>
                     </thead>
                     <tbody id="recommendBody"><tr><td colspan="10" class="empty-state">Click "Find Similar" to get recommendations</td></tr></tbody>
@@ -1616,22 +1627,22 @@
     <div class="panel" id="runs-panel">
         <div class="card">
             <div class="card-header">
-                <h2 class="card-title">Scrape Run History</h2>
+                <h2 class="card-title" data-i18n="Scrape Run History">Scrape Run History</h2>
             </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Type</th>
-                            <th>Started</th>
-                            <th>Duration</th>
-                            <th>Pages</th>
-                            <th>Listings</th>
-                            <th>New</th>
-                            <th>Updated</th>
-                            <th>Price Chg</th>
-                            <th>Status</th>
+                            <th data-i18n="Type">Type</th>
+                            <th data-i18n="Started">Started</th>
+                            <th data-i18n="Duration">Duration</th>
+                            <th data-i18n="Pages">Pages</th>
+                            <th data-i18n="Listings">Listings</th>
+                            <th data-i18n="New">New</th>
+                            <th data-i18n="Updated">Updated</th>
+                            <th data-i18n="Price Chg">Price Chg</th>
+                            <th data-i18n="Status">Status</th>
                         </tr>
                     </thead>
                     <tbody id="runsBody"></tbody>
@@ -1645,10 +1656,10 @@
 <div class="modal-overlay" id="presetModal">
     <div class="modal">
         <h3>Save Filter Preset</h3>
-        <input type="text" id="presetName" placeholder="Preset name...">
+        <input type="text" id="presetName" placeholder="Preset name..." data-i18n-placeholder="Preset name...">
         <div class="modal-actions">
-            <button class="btn btn-secondary" onclick="closePresetModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="confirmSavePreset()">Save</button>
+            <button class="btn btn-secondary" onclick="closePresetModal()" data-i18n="Cancel">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmSavePreset()" data-i18n="Save">Save</button>
         </div>
     </div>
 </div>
@@ -1712,14 +1723,14 @@ function toggleDarkMode() {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
     localStorage.setItem('yad2_theme', isDark ? 'light' : 'dark');
-    document.getElementById('darkToggle').textContent = isDark ? 'Dark' : 'Light';
+    document.getElementById('darkToggle').textContent = isDark ? t('Dark') : t('Light');
 }
 
 // Restore theme
 if (localStorage.getItem('yad2_theme') === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('darkToggle').textContent = 'Light';
+        document.getElementById('darkToggle').textContent = t('Light');
     });
 }
 
@@ -1732,6 +1743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPresets();
         renderAlerts();
         document.getElementById('favoritesBadge').textContent = favorites.size;
+        setLang(currentLang);
     } catch (e) {
         console.error('Init error:', e);
     }
@@ -2007,7 +2019,7 @@ async function loadPriceDropLeaderboard() {
         }
 
         tbody.innerHTML = d.neighborhoods.map(n => `
-            <tr onclick="filterByCity('${esc(n.city || '')}')" style="cursor:pointer;">
+            <tr onclick="filterByCity('${escJs(n.city || '')}')" style="cursor:pointer;">
                 <td>${esc(n.city || '-')}</td>
                 <td>${esc(n.neighborhood || '-')}</td>
                 <td><strong>${n.drop_count}</strong></td>
@@ -2208,8 +2220,8 @@ function getOptionsAll(tbl, cols) {
                 if (passes) { if (item.is_merchant) agentCount++; else privateCount++; }
             }
             finalResult[col] = [
-                { value: 'true', label: 'Agent', count: agentCount },
-                { value: 'false', label: 'Private', count: privateCount },
+                { value: 'true', label: t('Agent'), count: agentCount },
+                { value: 'false', label: t('Private'), count: privateCount },
             ];
         } else if (col === 'direction') {
             let downCount = 0, upCount = 0;
@@ -2223,8 +2235,8 @@ function getOptionsAll(tbl, cols) {
                 if (passes) { if (item.price_diff < 0) downCount++; else if (item.price_diff > 0) upCount++; }
             }
             finalResult[col] = [
-                { value: 'down', label: 'Drop', count: downCount },
-                { value: 'up', label: 'Raise', count: upCount },
+                { value: 'down', label: t('Drop'), count: downCount },
+                { value: 'up', label: t('Raise'), count: upCount },
             ];
         } else {
             const numeric = ['rooms', 'floor', 'size_sqm'].includes(col);
@@ -2450,7 +2462,7 @@ function filterListings() {
 function renderListingsTable(listings) {
     const tbody = document.getElementById('listingsBody');
     if (!listings.length) {
-        tbody.innerHTML = '<tr><td colspan="16" class="empty-state">No listings found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16" class="empty-state">'+t('No listings found')+'</td></tr>';
         return;
     }
 
@@ -2469,18 +2481,18 @@ function renderListingsTable(listings) {
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
-            <td>${isNew24h ? '<span class="new-badge">NEW</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${esc(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
-            <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${esc(l.neighborhood)}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${esc(l.neighborhood)}</a>` : '-'}</td>
+            <td>${isNew24h ? '<span class="new-badge">'+t('NEW')+'</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${escJs(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
+            <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${escJs(l.neighborhood)}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${esc(l.neighborhood)}</a>` : '-'}</td>
             <td>${esc(l.street || '-')}</td>
             <td>${l.rooms || '-'}</td>
             <td><strong>&#8362;${fmtP(l.price_numeric)}</strong></td>
             <td>${l.size_sqm || '-'}</td>
             <td>${l.floor || '-'}</td>
             <td class="price-sqm">${ppsqm ? '&#8362;' + fmtN(ppsqm) : '-'}</td>
-            <td>${l.is_merchant ? '<span class="badge badge-warning">Agent</span>' : '<span class="badge badge-success">Private</span>'}</td>
+            <td>${l.is_merchant ? '<span class="badge badge-warning">'+t('Agent')+'</span>' : '<span class="badge badge-success">'+t('Private')+'</span>'}</td>
             <td>${fmtD(l.first_seen_at)}</td>
             <td>${daysAgo(l.first_seen_at)}</td>
-            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank" onclick="event.stopPropagation()">View</a></td>
+            <td><a href="https://www.yad2.co.il/item/${esc(l.link_token || l.id)}" target="_blank" onclick="event.stopPropagation()">${t('View')}</a></td>
         </tr>`;
     }).join('');
 }
@@ -2510,7 +2522,7 @@ function filterPriceChanges() {
 function renderPriceChangesTable(changes) {
     const tbody = document.getElementById('priceChangesBody');
     if (!changes.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No price changes found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state">'+t('No price changes found')+'</td></tr>';
         return;
     }
 
@@ -2575,7 +2587,7 @@ function renderTopCities(cities) {
     if (!cities.length) { el.innerHTML = '<div class="empty-state">No data</div>'; return; }
     const max = cities[0].count;
     el.innerHTML = `<div class="bar-chart">${cities.slice(0, 10).map((c, i) => `
-        <div class="bar-row" style="cursor:pointer" onclick="showCityDetail('${esc(c.city)}')">
+        <div class="bar-row" style="cursor:pointer" onclick="showCityDetail('${escJs(c.city)}')">
             <div class="bar-label" title="${esc(c.city)}">${esc(c.city)}</div>
             <div class="bar-track">
                 <div class="bar-fill" style="width:${(c.count / max * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}">
@@ -2622,7 +2634,7 @@ function renderScraperStatus(runs) {
         <div class="scraper-status">
             <div class="scraper-status-icon ${isRunning ? 'running' : 'idle'}">${isRunning ? '&#9881;' : '&#10003;'}</div>
             <div class="scraper-status-text">
-                <div class="scraper-status-title">${type === 'smart' ? '<span class="badge badge-info" style="font-size:0.5625rem;margin-left:0.375rem;">Smart</span>' : '<span class="badge badge-neutral" style="font-size:0.5625rem;margin-left:0.375rem;">Full</span>'} ${isRunning ? 'Scrape running...' : 'Last scrape completed'}</div>
+                <div class="scraper-status-title">${type === 'smart' ? '<span class="badge badge-info" style="font-size:0.5625rem;margin-left:0.375rem;">Smart</span>' : '<span class="badge badge-neutral" style="font-size:0.5625rem;margin-left:0.375rem;">Full</span>'} ${isRunning ? t('Scrape running...') : t('Last scrape completed')}</div>
                 <div class="scraper-status-detail">
                     ${isRunning ? `Page ${latest.pages_scraped || 0}/${latest.total_pages || '?'} (${pct}%) | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg${eta}` :
                     `${fmtDT(latest.finished_at)} | ${latest.pages_scraped}/${latest.total_pages} pages | ${latest.listings_new || 0} new | ${latest.listings_updated || 0} updated | ${latest.price_changes || 0} price chg${latest.finished_at && latest.started_at ? ' | ' + fmtDur(new Date(latest.finished_at) - new Date(latest.started_at)) : ''}`}
@@ -3048,7 +3060,7 @@ async function showCityDetail(cityName) {
             <div style="font-size:0.6875rem;font-weight:600;color:var(--gray-600);margin:0.75rem 0 0.375rem;">Price Distribution</div>
             ${priceBars || '<div class="empty-state">No data</div>'}
             <div style="margin-top:1rem;display:flex;gap:0.5rem;">
-                <button class="btn btn-primary" onclick="filterByCity('${esc(cityName)}')">View Listings</button>
+                <button class="btn btn-primary" onclick="filterByCity('${escJs(cityName)}')" data-i18n="View Listings">View Listings</button>
             </div>
         `;
     } catch (e) {
@@ -3307,18 +3319,18 @@ function showListingDetail(idx) {
             <div><strong>City:</strong> ${esc(l.city || '-')}</div>
             <div><strong>Neighborhood:</strong> ${esc(l.neighborhood || '-')}</div>
             <div><strong>Street:</strong> ${esc(l.street || '-')}</div>
-            <div><strong>Property Type:</strong> ${esc(l.property_type || '-')}</div>
-            <div><strong>Rooms:</strong> ${l.rooms || '-'}</div>
-            <div><strong>Floor:</strong> ${l.floor || '-'}</div>
-            <div><strong>Size:</strong> ${l.size_sqm ? l.size_sqm + ' sqm' : '-'}</div>
-            <div><strong>Price:</strong> <span style="font-size:1rem;font-weight:700;">&#8362;${fmtP(l.price_numeric)}</span></div>
-            ${ppsqm ? `<div><strong>Price/sqm:</strong> &#8362;${fmtN(ppsqm)}</div>` : ''}
-            <div><strong>Type:</strong> ${l.is_merchant ? 'Agent' : 'Private'}${l.merchant_name ? ' (' + esc(l.merchant_name) + ')' : ''}</div>
-            <div><strong>Contact:</strong> ${esc(l.contact_name) || '-'}</div>
-            <div><strong>Images:</strong> ${l.images_count || 0} photos</div>
-            <div><strong>First Seen:</strong> ${fmtDT(l.first_seen_at)}</div>
-            <div><strong>Last Seen:</strong> ${fmtDT(l.last_seen_at)}</div>
-            <div><strong>Date Added:</strong> ${fmtDT(l.date_added)}</div>
+            <div><strong>${t('Property Type')}:</strong> ${esc(l.property_type || '-')}</div>
+            <div><strong>${t('Rooms')}:</strong> ${l.rooms || '-'}</div>
+            <div><strong>${t('Floor')}:</strong> ${l.floor || '-'}</div>
+            <div><strong>${t('Size')}:</strong> ${l.size_sqm ? l.size_sqm + ' ' + t('sqm') : '-'}</div>
+            <div><strong>${t('Price')}:</strong> <span style="font-size:1rem;font-weight:700;">&#8362;${fmtP(l.price_numeric)}</span></div>
+            ${ppsqm ? `<div><strong>${t('Price/sqm')}:</strong> &#8362;${fmtN(ppsqm)}</div>` : ''}
+            <div><strong>${t('Type')}:</strong> ${l.is_merchant ? t('Agent') : t('Private')}${l.merchant_name ? ' (' + esc(l.merchant_name) + ')' : ''}</div>
+            <div><strong>${t('Contact')}:</strong> ${esc(l.contact_name) || '-'}</div>
+            <div><strong>${t('Images')}:</strong> ${l.images_count || 0} ${t('photos')}</div>
+            <div><strong>${t('First Seen')}:</strong> ${fmtDT(l.first_seen_at)}</div>
+            <div><strong>${t('Last Seen')}:</strong> ${fmtDT(l.last_seen_at)}</div>
+            <div><strong>${t('Date Added')}:</strong> ${fmtDT(l.date_added)}</div>
         </div>
         ${dom !== null ? `<div style="margin-top:0.75rem;padding:0.625rem 0.75rem;background:var(--gray-50);border-radius:var(--radius-sm);border:1px solid var(--gray-200);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.375rem;">
@@ -3513,10 +3525,10 @@ function renderFavorites() {
     const minPrice = prices.length ? Math.min(...prices) : 0;
     const notesCount = favListings.filter(l => getNote(l.id)?.note || getNote(l.id)?.status).length;
     statsEl.innerHTML = `
-        <div class="kpi-card accent-primary"><div class="kpi-value">${favListings.length}</div><div class="kpi-label">Bookmarked</div></div>
-        <div class="kpi-card accent-success"><div class="kpi-value">\u20AA${fmtN(avgPrice)}</div><div class="kpi-label">Avg Price</div></div>
-        <div class="kpi-card accent-info"><div class="kpi-value">\u20AA${fmtN(minPrice)}</div><div class="kpi-label">Cheapest</div></div>
-        <div class="kpi-card accent-warning"><div class="kpi-value">${notesCount}</div><div class="kpi-label">With Notes</div></div>
+        <div class="kpi-card accent-primary"><div class="kpi-value">${favListings.length}</div><div class="kpi-label" data-i18n="Bookmarked">Bookmarked</div></div>
+        <div class="kpi-card accent-success"><div class="kpi-value">\u20AA${fmtN(avgPrice)}</div><div class="kpi-label" data-i18n="Avg Price">Avg Price</div></div>
+        <div class="kpi-card accent-info"><div class="kpi-value">\u20AA${fmtN(minPrice)}</div><div class="kpi-label" data-i18n="Cheapest">Cheapest</div></div>
+        <div class="kpi-card accent-warning"><div class="kpi-value">${notesCount}</div><div class="kpi-label" data-i18n="With Notes">With Notes</div></div>
     `;
 
     tbody.innerHTML = favListings.map(l => {
@@ -3701,18 +3713,18 @@ function showCompareModal() {
     if (listings.length < 2) { toast('Selected listings not loaded'); return; }
 
     const metrics = [
-        { label: 'City', key: 'city' },
-        { label: 'Neighborhood', key: 'neighborhood' },
-        { label: 'Street', key: 'street' },
-        { label: 'Rooms', key: 'rooms' },
-        { label: 'Price', key: 'price_numeric', fmt: v => v ? '\u20AA' + fmtP(v) : '-', best: 'min' },
-        { label: 'Size (sqm)', key: 'size_sqm', best: 'max' },
-        { label: 'Floor', key: 'floor' },
-        { label: 'Price/sqm', key: '_ppsqm', fmt: v => v ? '\u20AA' + fmtN(v) : '-', best: 'min' },
-        { label: 'Type', key: 'is_merchant', fmt: v => v ? 'Agent' : 'Private' },
-        { label: 'Status', key: '_status', fmt: v => v || '-' },
-        { label: 'First Seen', key: 'first_seen_at', fmt: v => fmtD(v) },
-        { label: 'Days on Market', key: '_days', best: 'context' },
+        { label: t('City'), key: 'city' },
+        { label: t('Neighborhood'), key: 'neighborhood' },
+        { label: t('Street'), key: 'street' },
+        { label: t('Rooms'), key: 'rooms' },
+        { label: t('Price'), key: 'price_numeric', fmt: v => v ? '\u20AA' + fmtP(v) : '-', best: 'min' },
+        { label: t('Size (sqm)'), key: 'size_sqm', best: 'max' },
+        { label: t('Floor'), key: 'floor' },
+        { label: t('Price/sqm'), key: '_ppsqm', fmt: v => v ? '\u20AA' + fmtN(v) : '-', best: 'min' },
+        { label: t('Type'), key: 'is_merchant', fmt: v => v ? t('Agent') : t('Private') },
+        { label: t('Status'), key: '_status', fmt: v => v || '-' },
+        { label: t('First Seen'), key: 'first_seen_at', fmt: v => fmtD(v) },
+        { label: t('Days on Market'), key: '_days', best: 'context' },
     ];
 
     // Enrich listings with computed fields
@@ -4025,7 +4037,7 @@ function renderAnalyticsBody() {
 
     const tbody = document.getElementById('analyticsBody');
     tbody.innerHTML = sorted.map(n => `
-        <tr onclick="filterByCity('${esc(n.city || '')}')" style="cursor:pointer">
+        <tr onclick="filterByCity('${escJs(n.city || '')}')" style="cursor:pointer">
             <td>${esc(n.city || '-')}</td>
             <td>${esc(n.neighborhood || '-')}</td>
             <td>${fmtN(n.listings_count)}</td>
@@ -4131,6 +4143,7 @@ function daysAgo(s) {
 }
 
 function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,'\\x27').replace(/</g,'\\x3c'); }
 function fmtN(n) { return n == null ? '-' : Number(n).toLocaleString('en-US'); }
 function fmtP(n) { return n == null ? '-' : `${Number(n).toLocaleString('en-US')}`; }
 function fmtD(s) { return s ? new Date(s).toLocaleDateString('en-GB') : '-'; }
@@ -4151,6 +4164,145 @@ function toast(msg) {
     el.textContent = msg;
     el.classList.add('visible');
     setTimeout(() => el.classList.remove('visible'), 2500);
+}
+
+// ─── I18N / LANGUAGE SYSTEM ────────────────────────────────────────────────
+
+const HE = {
+    'Yad2 Dashboard':'לוח יד2','Auto-refresh':'רענון אוטומטי','Dark':'כהה',
+    'Overview':'סקירה כללית','Listings':'מודעות','Price Changes':'שינויי מחיר',
+    'Analytics':'ניתוח נתונים','Deals':'מציאות','Map':'מפה','Alerts':'התראות',
+    'Favorites':'מועדפים','Scrape History':'היסטוריית סריקות',
+    'Active Listings':'מודעות פעילות','Total Ever Seen':'סה"כ נצפו',
+    'Avg Price':'מחיר ממוצע','Min Price':'מחיר מינימלי','Max Price':'מחיר מקסימלי',
+    'Cities':'ערים','Neighborhoods':'שכונות','Price Changes 7d':'שינויי מחיר 7 ימים',
+    'Price Changes 24h':'שינויי מחיר 24 שעות','New 24h':'חדשות 24 שעות',
+    'New 7d':'חדשות 7 ימים','New Since Visit':'חדשות מהביקור האחרון',
+    'Top Cities':'ערים מובילות','Rooms Distribution':'התפלגות חדרים',
+    'Recent Scrape Runs':'סריקות אחרונות','Latest Price Drops':'ירידות מחיר אחרונות',
+    'Telegram Notifications':'התראות טלגרם','Send Test':'שלח בדיקה',
+    'City':'עיר','Neighborhood':'שכונה','Street':'רחוב','Rooms':'חדרים',
+    'Price':'מחיר','Sqm':'מ"ר','Floor':'קומה','Type':'סוג','Link':'קישור',
+    'Added':'נוסף','Days':'ימים','Status':'סטטוס','Notes':'הערות','Alert':'התראה',
+    'Old Price':'מחיר ישן','New Price':'מחיר חדש','Direction':'כיוון',
+    'Change':'שינוי','Change %':'שינוי %','Date':'תאריך','Discount':'הנחה',
+    'Area Avg':'ממוצע אזורי','Group':'קבוצה','Price/sqm':'מחיר/מ"ר',
+    'Avg/sqm':'ממוצע/מ"ר','Avg Rooms':'ממוצע חדרים','Median':'חציון',
+    'Min':'מינימום','Max':'מקסימום','Drops':'ירידות','Avg Drop':'ירידה ממוצעת',
+    'Avg %':'ממוצע %','Biggest':'הגדולה ביותר','Photo':'תמונה',
+    'Started':'התחלה','Duration':'משך','Pages':'עמודים','New':'חדשות',
+    'Updated':'עודכנו','Price Chg':'שינוי מחיר',
+    'Save Filter':'שמור מסנן','Clear All':'נקה הכל','Clear Filters':'נקה מסננים',
+    'Compare':'השווה','Cancel':'ביטול','Save':'שמור','Delete':'מחק',
+    'Export Notes':'ייצא הערות','Find Similar':'מצא דומים',
+    'Scan for Duplicates':'סרוק כפילויות','View Listings':'צפה במודעות',
+    '+ New Alert':'+ התראה חדשה','Select All':'בחר הכל',
+    'Neighborhood Price Comparison':'השוואת מחירים לפי שכונה',
+    'Price Drop Leaderboard':'דירוג ירידות מחיר',
+    'Compare Neighborhoods':'השוואת שכונות',
+    'Best Deals - Below Neighborhood Average':'מציאות - מתחת לממוצע השכונה',
+    'Stale Listings - Longest on Market':'מודעות ותיקות - הארוכות ביותר בשוק',
+    'Possible Duplicates':'כפילויות אפשריות','Price Map':'מפת מחירים',
+    'Saved Searches':'חיפושים שמורים','Matching Listings':'מודעות תואמות',
+    'Bookmarked Listings':'מודעות מסומנות','Recommended for You':'מומלצות עבורך',
+    'Scrape Run History':'היסטוריית סריקות','Save Filter Preset':'שמור תבנית מסנן',
+    'Price Trends (30 days)':'מגמות מחירים (30 יום)',
+    'Daily Price Changes':'שינויי מחיר יומיים','Price Distribution':'התפלגות מחירים',
+    'Cheapest vs Expensive Neighborhoods':'שכונות זולות מול יקרות',
+    'Total Changes (30d)':'סה"כ שינויים (30 יום)','Price Drops':'ירידות מחיר',
+    'Price Raises':'עליות מחיר','Deals Found':'מציאות נמצאו',
+    'Avg Discount':'הנחה ממוצעת','Best Deal':'מציאה הטובה ביותר',
+    'Days on Market':'ימים בשוק','Avg Change':'שינוי ממוצע',
+    'Search city, street, neighborhood...':'חפש עיר, רחוב, שכונה...',
+    'Search...':'חיפוש...','Preset name...':'שם תבנית...',
+    'Any city':'כל עיר','Any':'הכל','All':'הכל','All Cities':'כל הערים',
+    'Agent':'תיווך','Private':'פרטי','Drop':'ירידה','Raise':'עלייה',
+    'View':'צפה','Open':'פתח',
+    'Sort: Default':'מיון: ברירת מחדל','Price: Low to High':'מחיר: מהנמוך לגבוה',
+    'Price: High to Low':'מחיר: מהגבוה לנמוך','By Status':'לפי סטטוס',
+    'Newest First':'חדשים תחילה',
+    'No status':'ללא סטטוס','Called':'התקשרתי','Visited':'ביקרתי',
+    'Interested':'מעוניין','Rejected':'נדחה',
+    '10%+ below avg':'10%+ מתחת לממוצע','15%+ below avg':'15%+ מתחת לממוצע',
+    '20%+ below avg':'20%+ מתחת לממוצע','25%+ below avg':'25%+ מתחת לממוצע',
+    '7+ days':'7+ ימים','14+ days':'14+ ימים','30+ days':'30+ ימים','60+ days':'60+ ימים',
+    'Bookmarked':'מסומנים','Cheapest':'הזול ביותר','With Notes':'עם הערות',
+    'Per page:':'לעמוד:',
+    'Neighborhood 1':'שכונה 1','Neighborhood 2':'שכונה 2',
+    'Max Price':'מחיר מקסימלי','Min Rooms':'מינימום חדרים',
+    'Neighborhoods with the most price drops (30 days)':'שכונות עם הכי הרבה ירידות מחיר (30 יום)',
+    'Dot size = price relative to area. Color: green=cheap, red=expensive':'גודל נקודה = מחיר יחסי לאזור. צבע: ירוק=זול, אדום=יקר',
+    'Finds listings in the same location with matching rooms & similar size — may be the same apartment listed by different sources at different prices.':'מוצא מודעות באותו מיקום עם חדרים תואמים וגודל דומה — ייתכן שמדובר באותה דירה שפורסמה ממקורות שונים.',
+    'Based on your favorites: finds listings in the same cities, similar rooms & price range that you haven\'t bookmarked yet.':'מבוסס על המועדפים שלך: מוצא מודעות באותן ערים, חדרים ותחום מחירים דומה שטרם סימנת.',
+    'e.g. 5000':'לדוגמה 5000','e.g. 3':'לדוגמה 3',
+    'e.g. Florentin':'לדוגמה פלורנטין','e.g. Neve Tzedek':'לדוגמה נווה צדק',
+    'Property Type':'סוג נכס','sqm':'מ"ר','Contact':'איש קשר','Images':'תמונות',
+    'photos':'תמונות','First Seen':'נראה לראשונה','Last Seen':'נראה לאחרונה',
+    'Date Added':'תאריך הוספה','Size (sqm)':'גודל (מ"ר)',
+    'No listings found':'לא נמצאו מודעות','No price changes found':'לא נמצאו שינויי מחיר',
+    'Loading...':'טוען...','No data':'אין נתונים','No data yet':'אין נתונים עדיין',
+    'No trend data yet':'אין נתוני מגמה עדיין','No price data':'אין נתוני מחיר',
+    'Select at least 2 listings to compare':'בחר לפחות 2 מודעות להשוואה',
+    'No favorites yet':'אין מועדפים עדיין','No alerts configured':'אין התראות מוגדרות',
+    'Called':'התקשרתי','Visited':'ביקרתי','Interested':'מעוניין','Rejected':'נדחה',
+    'NEW':'חדש','selected':'נבחרו','Sending...':'שולח...','Configured':'מוגדר',
+    'Not configured':'לא מוגדר','Set env vars to enable':'הגדר משתני סביבה להפעלה',
+    'Light':'בהיר','Dark':'כהה',
+    'Scrape running...':'סריקה מתבצעת...','Last scrape completed':'סריקה אחרונה הושלמה',
+    'No price drops':'אין ירידות מחיר',
+    'Subscribe to Telegram':'הרשם לטלגרם','Unsubscribe':'בטל הרשמה',
+    'No neighborhoods with 2+ price drops':'אין שכונות עם 2+ ירידות מחיר',
+};
+
+let currentLang = localStorage.getItem('yad2_lang') || 'he';
+
+function t(key) {
+    if (currentLang === 'he') return HE[key] || key;
+    return key; // English is the default/fallback
+}
+
+function setLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('yad2_lang', lang);
+    const html = document.getElementById('htmlRoot');
+    if (lang === 'he') {
+        html.setAttribute('lang', 'he');
+        html.setAttribute('dir', 'rtl');
+    } else {
+        html.setAttribute('lang', 'en');
+        html.setAttribute('dir', 'ltr');
+    }
+    // Update all elements with data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+    });
+    // Update placeholders
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    // Update select options with data-i18n
+    document.querySelectorAll('option[data-i18n]').forEach(el => {
+        el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    // Update title attributes
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        el.title = t(el.getAttribute('data-i18n-title'));
+    });
+    // Update lang toggle button
+    document.getElementById('langToggle').textContent = lang === 'he' ? 'EN' : 'HE';
+    document.getElementById('langToggle').title = lang === 'he' ? 'Switch to English' : 'עבור לעברית';
+    // Re-render dynamic content with new language
+    try {
+        if (S.listings.data.length) filterAndRender('listings');
+        if (S.priceChanges.allData.length) filterAndRender('priceChanges');
+        deferBuildFilters('listings');
+        deferBuildFilters('priceChanges');
+    } catch(e) { /* tables not loaded yet */ }
+}
+
+function toggleLang() {
+    setLang(currentLang === 'he' ? 'en' : 'he');
 }
 </script>
 </body>
