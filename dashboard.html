@@ -1499,10 +1499,18 @@
 
     <!-- Favorites Panel -->
     <div class="panel" id="favorites-panel">
+        <div id="favoritesStats" class="analytics-grid" style="margin-bottom:1rem;"></div>
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title">Bookmarked Listings</h2>
-                <div style="display:flex;gap:0.5rem;align-items:center;">
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                    <select class="note-status-select" id="favSortSelect" onchange="renderFavorites()" style="font-size:0.6875rem;">
+                        <option value="default">Sort: Default</option>
+                        <option value="price_asc">Price: Low to High</option>
+                        <option value="price_desc">Price: High to Low</option>
+                        <option value="status">By Status</option>
+                        <option value="newest">Newest First</option>
+                    </select>
                     <button class="preset-btn" onclick="exportFavoritesWithNotes()">Export Notes</button>
                     <button class="preset-btn" onclick="clearFavorites()">Clear All</button>
                 </div>
@@ -3096,16 +3104,43 @@ function toggleFavorite(e, id) {
 
 function renderFavorites() {
     const tbody = document.getElementById('favoritesBody');
+    const statsEl = document.getElementById('favoritesStats');
     if (!favorites.size) {
         tbody.innerHTML = '<tr><td colspan="13" class="empty-state">No bookmarked listings. Click the star on any listing to bookmark it.</td></tr>';
+        statsEl.innerHTML = '';
         return;
     }
 
-    const favListings = S.listings.allData.filter(l => favorites.has(l.id));
+    let favListings = S.listings.allData.filter(l => favorites.has(l.id));
     if (!favListings.length) {
         tbody.innerHTML = '<tr><td colspan="13" class="empty-state">Bookmarked listings not loaded yet. Switch to Listings tab first.</td></tr>';
+        statsEl.innerHTML = '';
         return;
     }
+
+    // Sort favorites
+    const sortVal = document.getElementById('favSortSelect')?.value || 'default';
+    const statusOrder = { interested: 0, called: 1, visited: 2, rejected: 3 };
+    if (sortVal === 'price_asc') favListings.sort((a, b) => (a.price_numeric || 0) - (b.price_numeric || 0));
+    else if (sortVal === 'price_desc') favListings.sort((a, b) => (b.price_numeric || 0) - (a.price_numeric || 0));
+    else if (sortVal === 'newest') favListings.sort((a, b) => new Date(b.first_seen_at || 0) - new Date(a.first_seen_at || 0));
+    else if (sortVal === 'status') favListings.sort((a, b) => {
+        const sa = getNote(a.id)?.status || 'zzz';
+        const sb = getNote(b.id)?.status || 'zzz';
+        return (statusOrder[sa] ?? 99) - (statusOrder[sb] ?? 99);
+    });
+
+    // Render quick stats
+    const prices = favListings.map(l => l.price_numeric).filter(Boolean);
+    const avgPrice = prices.length ? Math.round(prices.reduce((s, p) => s + p, 0) / prices.length) : 0;
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const notesCount = favListings.filter(l => getNote(l.id)?.note || getNote(l.id)?.status).length;
+    statsEl.innerHTML = `
+        <div class="kpi-card accent-primary"><div class="kpi-value">${favListings.length}</div><div class="kpi-label">Bookmarked</div></div>
+        <div class="kpi-card accent-success"><div class="kpi-value">\u20AA${fmtN(avgPrice)}</div><div class="kpi-label">Avg Price</div></div>
+        <div class="kpi-card accent-info"><div class="kpi-value">\u20AA${fmtN(minPrice)}</div><div class="kpi-label">Cheapest</div></div>
+        <div class="kpi-card accent-warning"><div class="kpi-value">${notesCount}</div><div class="kpi-label">With Notes</div></div>
+    `;
 
     tbody.innerHTML = favListings.map(l => {
         const sqmVal = parseInt(l.size_sqm);
