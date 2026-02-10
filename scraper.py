@@ -569,14 +569,6 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                         **listing, "price_numeric": price_numeric, "old_price": old_price
                     })
 
-                    # Send per-listing Telegram alert for every price change
-                    notify_price_change(
-                        listing["id"], listing.get("city", ""),
-                        listing.get("neighborhood", ""), listing.get("street", ""),
-                        old_price, price_numeric,
-                        listing.get("rooms", ""), listing.get("link_token", "")
-                    )
-
                 # Update existing
                 cur.execute("""
                     UPDATE listings SET
