@@ -352,23 +352,30 @@ def send_telegram(message: str):
         logger.warning(f"Telegram send failed: {e}")
 
 
-def notify_price_drop(listing_id: str, city: str, neighborhood: str, street: str,
-                      old_price: int, new_price: int, rooms: str, link_token: str):
-    """Send Telegram notification for a significant price drop."""
-    drop = old_price - new_price
-    if old_price == 0:
+def notify_price_change(listing_id: str, city: str, neighborhood: str, street: str,
+                        old_price: int, new_price: int, rooms: str, link_token: str):
+    """Send Telegram notification for any price change."""
+    if old_price == 0 or old_price == new_price:
         return
-    pct = round(drop / old_price * 100, 1)
-    if pct < TELEGRAM_MIN_DROP_PERCENT:
-        return
+
+    diff = new_price - old_price
+    pct = round(abs(diff) / old_price * 100, 1)
 
     link = f"https://www.yad2.co.il/item/{link_token or listing_id}"
     location = ", ".join(filter(None, [city, neighborhood, street]))
+
+    if diff < 0:
+        header = f"📉 <b>Price Drop {pct}%</b>"
+        diff_str = f"-{abs(diff):,}"
+    else:
+        header = f"📈 <b>Price Raise {pct}%</b>"
+        diff_str = f"+{diff:,}"
+
     msg = (
-        f"<b>Price Drop {pct}%</b>\n"
+        f"{header}\n"
         f"{location}\n"
         f"{rooms or '?'} rooms\n"
-        f"{old_price:,} -> <b>{new_price:,}</b> (-{drop:,})\n"
+        f"{old_price:,} → <b>{new_price:,}</b> ({diff_str})\n"
         f"<a href=\"{link}\">View on Yad2</a>"
     )
     send_telegram(msg)
@@ -562,8 +569,13 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                         **listing, "price_numeric": price_numeric, "old_price": old_price
                     })
 
-                    # Note: per-listing Telegram alerts are now handled by
-                    # send_subscription_alerts() which filters by user subscriptions.
+                    # Send per-listing Telegram alert for every price change
+                    notify_price_change(
+                        listing["id"], listing.get("city", ""),
+                        listing.get("neighborhood", ""), listing.get("street", ""),
+                        old_price, price_numeric,
+                        listing.get("rooms", ""), listing.get("link_token", "")
+                    )
 
                 # Update existing
                 cur.execute("""
