@@ -16,7 +16,7 @@ import os
 import random
 import time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import urllib.request
@@ -44,6 +44,11 @@ try:
     TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
 except (ValueError, TypeError):
     TELEGRAM_MIN_DROP_PERCENT = 5.0
+
+# Weekly digest: send batched scrape summaries on Friday at 14:00 Israel time (before Shabbat)
+# Day 4 = Friday (Monday=0), configurable via env
+WEEKLY_DIGEST_DAY = int(os.environ.get("WEEKLY_DIGEST_DAY", "4"))  # 0=Mon, 4=Fri, 6=Sun
+WEEKLY_DIGEST_HOUR = int(os.environ.get("WEEKLY_DIGEST_HOUR", "14"))  # 24h format, Israel time
 
 # Logging
 logging.basicConfig(
@@ -383,16 +388,93 @@ def notify_price_change(listing_id: str, city: str, neighborhood: str, street: s
 
 def notify_scrape_summary(run_id: int, run_type: str, pages: int, total_pages: int,
                           new_count: int, updated: int, price_changes: int, duration_min: int):
-    """Send a summary after each scrape completes."""
+    """Log scrape summary. No longer sends Telegram per-cycle — batched into weekly digest."""
+    logger.info(f"Scrape #{run_id} summary: type={run_type}, pages={pages}/{total_pages}, "
+                f"new={new_count}, updated={updated}, price_changes={price_changes}, duration={duration_min}m")
+
+
+def send_weekly_digest():
+    """Send a single Telegram message summarizing all scrape runs from the past week."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_runs,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+                COALESCE(SUM(listings_new), 0) as total_new,
+                COALESCE(SUM(listings_updated), 0) as total_updated,
+                COALESCE(SUM(price_changes), 0) as total_price_changes,
+                COALESCE(SUM(pages_scraped), 0) as total_pages,
+                MIN(started_at) as first_run,
+                MAX(finished_at) as last_run
+            FROM scrape_runs
+            WHERE started_at >= NOW() - INTERVAL '7 days'
+        """)
+        row = cur.fetchone()
+        total_runs, completed, failed, total_new, total_updated, total_price_changes, total_pages, first_run, last_run = row
+
+        if total_runs == 0:
+            cur.close()
+            return
+
+        # Get current active listings count
+        cur.execute("SELECT COUNT(*) FROM listings WHERE is_active = TRUE")
+        active_count = cur.fetchone()[0]
+
+        # Get top cities with new listings this week
+        cur.execute("""
+            SELECT city, COUNT(*) as cnt
+            FROM listings
+            WHERE first_seen_at >= NOW() - INTERVAL '7 days'
+            GROUP BY city ORDER BY cnt DESC LIMIT 5
+        """)
+        top_cities = cur.fetchall()
+
+        cur.close()
+    finally:
+        conn.close()
+
+    city_lines = "\n".join(f"  • {city}: {cnt}" for city, cnt in top_cities) if top_cities else "  (none)"
+
     msg = (
-        f"<b>Scrape #{run_id} Complete</b>\n"
-        f"Type: {run_type} | Pages: {pages}/{total_pages}\n"
-        f"New: {new_count} | Updated: {updated} | Price changes: {price_changes}\n"
-        f"Duration: {duration_min}m"
+        f"📊 <b>Weekly Scrape Digest</b>\n\n"
+        f"<b>Runs:</b> {completed} completed, {failed} failed (of {total_runs} total)\n"
+        f"<b>Pages scraped:</b> {total_pages:,}\n"
+        f"<b>New listings:</b> {total_new:,}\n"
+        f"<b>Updated:</b> {total_updated:,}\n"
+        f"<b>Price changes:</b> {total_price_changes:,}\n"
+        f"<b>Active listings:</b> {active_count:,}\n\n"
+        f"<b>Top cities (new this week):</b>\n{city_lines}"
     )
     send_telegram(msg)
+    logger.info("Weekly digest sent")
+
+
+def maybe_send_weekly_digest():
+    """Check if it's time to send the weekly digest, and send if so."""
+    try:
+        # Israel timezone = UTC+2 (or +3 in summer). Use +3 as approximation.
+        israel_now = datetime.now(timezone.utc) + timedelta(hours=3)
+
+        if israel_now.weekday() != WEEKLY_DIGEST_DAY:
+            return
+        if israel_now.hour != WEEKLY_DIGEST_HOUR:
+            return
+
+        # Check if we already sent this week (using scraper_state)
+        week_key = f"weekly_digest_{israel_now.strftime('%Y-W%W')}"
+        if get_state(week_key, "0") == "1":
+            return
+
+        send_weekly_digest()
+        set_state(week_key, "1")
+    except Exception as e:
+        logger.warning(f"Weekly digest check failed: {e}")
 
 
 def send_subscription_alerts(new_listings: list[dict], price_changed_listings: list[dict]):
@@ -563,6 +645,17 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                     """, (listing["id"], price_str, price_numeric, now, run_id))
                     price_changes += 1
                     logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
+
+                    # Send immediate Telegram notification for price change
+                    notify_price_change(
+                        listing["id"],
+                        listing.get("city", ""),
+                        listing.get("neighborhood", ""),
+                        listing.get("street", ""),
+                        old_price, price_numeric,
+                        listing.get("rooms", ""),
+                        listing.get("link_token", "")
+                    )
 
                     # Track for subscription alerts
                     price_changed_for_alert.append({
@@ -1315,6 +1408,9 @@ def main():
             logger.info(f"Scrape completed: {result}")
         except Exception as e:
             logger.error(f"Scrape error: {e}")
+
+        # Check if it's time to send the weekly digest
+        maybe_send_weekly_digest()
 
         run_counter += 1
         set_state("run_counter", str(run_counter))
