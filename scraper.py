@@ -646,17 +646,6 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
                     price_changes += 1
                     logger.info(f"Price change for {listing['id']}: {old_price} -> {price_numeric}")
 
-                    # Send immediate Telegram notification for price change
-                    notify_price_change(
-                        listing["id"],
-                        listing.get("city", ""),
-                        listing.get("neighborhood", ""),
-                        listing.get("street", ""),
-                        old_price, price_numeric,
-                        listing.get("rooms", ""),
-                        listing.get("link_token", "")
-                    )
-
                     # Track for subscription alerts
                     price_changed_for_alert.append({
                         **listing, "price_numeric": price_numeric, "old_price": old_price
