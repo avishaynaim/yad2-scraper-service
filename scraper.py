@@ -22,8 +22,27 @@ from typing import Optional
 import urllib.request
 import urllib.parse
 
-import psycopg2
-from psycopg2.extras import execute_values
+try:
+    import psycopg2
+    def _pg_connect(url):
+        return psycopg2.connect(url)
+    _pg_OperationalError = psycopg2.OperationalError
+except ImportError:
+    import pg8000.dbapi as _pg8000
+    import urllib.parse as _urlparse
+    def _pg_connect(url):
+        p = _urlparse.urlparse(str(url))
+        db = p.path
+        if isinstance(db, bytes):
+            db = db.decode()
+        db = db.lstrip('/')
+        return _pg8000.connect(
+            host=str(p.hostname), port=int(p.port or 5432),
+            database=db, user=str(p.username),
+            password=str(p.password), ssl_context=True
+        )
+    _pg_OperationalError = Exception
+
 from curl_cffi import requests as curl_requests
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────────
@@ -73,9 +92,9 @@ def get_db_connection(retries=5, delay=3):
     """Get database connection with retry logic."""
     for attempt in range(retries):
         try:
-            conn = psycopg2.connect(DATABASE_URL)
+            conn = _pg_connect(DATABASE_URL)
             return conn
-        except psycopg2.OperationalError as e:
+        except _pg_OperationalError as e:
             if attempt < retries - 1:
                 logger.warning(f"DB connection failed (attempt {attempt+1}/{retries}): {e}")
                 time.sleep(delay)

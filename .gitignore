@@ -13,3 +13,4 @@ venv/
 # Local
 *.log
 .DS_Store
+.env.local
