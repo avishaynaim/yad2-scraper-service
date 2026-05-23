@@ -1401,6 +1401,80 @@ def unsubscribe_alert(sub_id):
             conn.close()
 
 
+# ─── CITY SUBSCRIPTIONS ──────────────────────────────────────────────────────
+
+@app.route("/cities/subscriptions", methods=["GET"])
+def list_city_subscriptions():
+    """List all subscribed cities (active + inactive)."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, city_name, city_code, min_rooms, active, added_at FROM city_subscriptions ORDER BY city_name")
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return jsonify({"cities": rows})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            put_db(conn)
+
+
+@app.route("/cities/subscriptions", methods=["POST"])
+def add_city_subscription():
+    """Add a city to scrape. Body: {city_name, city_code, min_rooms (optional)}"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+    city_name = (data.get("city_name") or "").strip()
+    city_code = str(data.get("city_code") or "").strip()
+    min_rooms = data.get("min_rooms")
+    if not city_name or not city_code:
+        return jsonify({"error": "city_name and city_code are required"}), 400
+
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO city_subscriptions (city_name, city_code, min_rooms, active)
+            VALUES (%s, %s, %s, TRUE)
+            ON CONFLICT (city_name) DO UPDATE SET city_code = EXCLUDED.city_code, min_rooms = EXCLUDED.min_rooms, active = TRUE
+            RETURNING id, city_name, city_code, min_rooms, active, added_at
+        """, (city_name, city_code, min_rooms))
+        row = dict(cur.fetchone())
+        conn.commit()
+        cur.close()
+        return jsonify({"message": "City added", "city": row}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            put_db(conn)
+
+
+@app.route("/cities/subscriptions/<path:city_name>", methods=["DELETE"])
+def remove_city_subscription(city_name):
+    """Deactivate a city subscription by name."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE city_subscriptions SET active = FALSE WHERE city_name = %s RETURNING id", (city_name,))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        if not row:
+            return jsonify({"error": "City not found"}), 404
+        return jsonify({"message": f"City '{city_name}' deactivated"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if conn:
+            put_db(conn)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, debug=False)

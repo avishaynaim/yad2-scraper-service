@@ -40,6 +40,10 @@ FULL_SCRAPE_EVERY = int(os.environ.get("FULL_SCRAPE_EVERY", "6"))
 # Telegram notifications
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8273771765:AAEXW66yFCnv7LHlxwvJP2yoLrss0spnrPw")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "2018339906")
+
+# WhatsApp notifications (comma-separated phone numbers, e.g. "972501234567,972509876543")
+WHATSAPP_NUMBERS = [n.strip() for n in os.environ.get("WHATSAPP_NUMBERS", "972504334994").split(",") if n.strip()]
+WHATSAPP_SENDER_URL = os.environ.get("WHATSAPP_SENDER_URL", "http://localhost:3001")
 try:
     TELEGRAM_MIN_DROP_PERCENT = float(os.environ.get("TELEGRAM_MIN_DROP_PERCENT", "5"))
 except (ValueError, TypeError):
@@ -168,8 +172,9 @@ def init_db():
         """)
 
         # Add new columns if table already exists without them
+        cur.execute("ALTER TABLE scrape_runs ALTER COLUMN run_type TYPE VARCHAR(100);")
         for col, coltype, default in [
-            ("run_type", "VARCHAR(20)", "'full'"),
+            ("run_type", "VARCHAR(100)", "'full'"),
             ("last_page_scraped", "INTEGER", "0"),
             ("scraped_pages", "JSONB", "'[]'"),
             ("price_changes", "INTEGER", "0"),
@@ -198,6 +203,17 @@ def init_db():
                 notify_new BOOLEAN DEFAULT TRUE,
                 notify_price_drop BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
+        # City subscriptions — which cities to scrape
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS city_subscriptions (
+                id SERIAL PRIMARY KEY,
+                city_name VARCHAR(100) NOT NULL UNIQUE,
+                city_code VARCHAR(20) NOT NULL,
+                active BOOLEAN DEFAULT TRUE,
+                added_at TIMESTAMP DEFAULT NOW()
             );
         """)
 
@@ -237,6 +253,68 @@ def set_state(key: str, value: str):
         cur.close()
     finally:
         conn.close()
+
+
+# ─── CITY SUBSCRIPTIONS ─────────────────────────────────────────────────────────
+
+def get_selected_cities() -> list[dict]:
+    """Return list of active city subscriptions."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT city_name, city_code, min_rooms FROM city_subscriptions WHERE active = TRUE ORDER BY city_name")
+        rows = cur.fetchall()
+        cur.close()
+        return [{"city_name": r[0], "city_code": r[1], "min_rooms": r[2]} for r in rows]
+    finally:
+        conn.close()
+
+
+def add_city_subscription(city_name: str, city_code: str):
+    """Add or re-activate a city subscription."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO city_subscriptions (city_name, city_code, active)
+            VALUES (%s, %s, TRUE)
+            ON CONFLICT (city_name) DO UPDATE SET city_code = EXCLUDED.city_code, active = TRUE
+        """, (city_name, city_code))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    logger.info(f"City subscription added: {city_name} (code={city_code})")
+
+
+def remove_city_subscription(city_name: str):
+    """Deactivate a city subscription."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE city_subscriptions SET active = FALSE WHERE city_name = %s", (city_name,))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    logger.info(f"City subscription removed: {city_name}")
+
+
+def init_default_cities():
+    """Seed default cities if none exist."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM city_subscriptions WHERE active = TRUE")
+        count = cur.fetchone()[0]
+        cur.close()
+    finally:
+        conn.close()
+
+    if count == 0:
+        logger.info("No cities configured — seeding defaults: רחובות, מודיעין מכבים רעות")
+        add_city_subscription("רחובות", "8400")
+        add_city_subscription("מודיעין מכבים רעות", "1200")
 
 
 def cleanup_stale_runs():
@@ -357,6 +435,110 @@ def send_telegram(message: str):
         logger.warning(f"Telegram send failed: {e}")
 
 
+def send_new_listing_telegram(listing: dict):
+    """Send a Telegram message for a single new listing."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        city = listing.get("city", "")
+        neighborhood = listing.get("neighborhood", "")
+        street = listing.get("street", "")
+        rooms = listing.get("rooms", "")
+        size = listing.get("size_sqm", "")
+        floor = listing.get("floor", "")
+        price = listing.get("price_numeric")
+        link_token = listing.get("link_token") or listing.get("id", "")
+        is_merchant = listing.get("is_merchant", False)
+
+        location = ", ".join(filter(None, [city, neighborhood, street]))
+        price_str = f"₪{price:,}" if price else "לא צוין"
+        details = " | ".join(filter(None, [
+            f"{rooms} חדרים" if rooms else None,
+            f"{size} מ\"ר" if size else None,
+            f"קומה {floor}" if floor else None,
+            "סוכן" if is_merchant else "פרטי",
+        ]))
+        link = f"https://www.yad2.co.il/item/{link_token}"
+
+        msg = (
+            f"🏠 <b>דירה חדשה</b>\n"
+            f"📍 {location}\n"
+            f"🔹 {details}\n"
+            f"💰 <b>{price_str}</b>/חודש\n"
+            f"<a href=\"{link}\">לצפייה במודעה ›</a>"
+        )
+        send_telegram(msg)
+    except Exception as e:
+        logger.warning(f"New listing Telegram failed: {e}")
+
+
+def send_whatsapp(message: str, phone: str = None, retries: int = 4, retry_delay: int = 20):
+    """Send a WhatsApp message via the local Baileys sender service.
+    If phone is None, sends to the configured group.
+    Retries on connection failure to handle sender restarts."""
+    payload = {"message": message}
+    if phone:
+        payload["phone"] = phone
+    data = json.dumps(payload).encode()
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(
+                f"{WHATSAPP_SENDER_URL}/send",
+                data=data,
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=10)
+            return
+        except Exception as e:
+            if attempt < retries - 1:
+                logger.warning(f"WhatsApp send failed (attempt {attempt+1}/{retries}): {e} — retrying in {retry_delay}s")
+                time.sleep(retry_delay)
+            else:
+                logger.warning(f"WhatsApp send failed after {retries} attempts: {e}")
+
+
+def send_new_listing_whatsapp(listing: dict):
+    """Send a WhatsApp message for a single new listing to the group (or individual numbers)."""
+    try:
+        city = listing.get("city", "")
+        neighborhood = listing.get("neighborhood", "")
+        street = listing.get("street", "")
+        rooms = listing.get("rooms", "")
+        size = listing.get("size_sqm", "")
+        floor = listing.get("floor", "")
+        price = listing.get("price_numeric")
+        link_token = listing.get("link_token") or listing.get("id", "")
+        is_merchant = listing.get("is_merchant", False)
+
+        location = ", ".join(filter(None, [city, neighborhood, street]))
+        price_str = f"₪{price:,}" if price else "לא צוין"
+        details = " | ".join(filter(None, [
+            f"{rooms} חדרים" if rooms else None,
+            f"{size} מ\"ר" if size else None,
+            f"קומה {floor}" if floor else None,
+            "סוכן" if is_merchant else "פרטי",
+        ]))
+        link = f"https://www.yad2.co.il/item/{link_token}"
+        msg = f"🏠 דירה חדשה\n📍 {location}\n🔹 {details}\n💰 {price_str}/חודש\n{link}"
+
+        # Check if a group exists — prefer group, fall back to individual numbers
+        try:
+            group_resp = urllib.request.urlopen(f"{WHATSAPP_SENDER_URL}/group", timeout=5)
+            group_data = json.loads(group_resp.read())
+            group_jid = group_data.get("groupJid")
+        except Exception:
+            group_jid = None
+
+        if group_jid:
+            send_whatsapp(msg)
+        else:
+            for phone in WHATSAPP_NUMBERS:
+                send_whatsapp(msg, phone=phone)
+                time.sleep(0.5)
+    except Exception as e:
+        logger.warning(f"New listing WhatsApp failed: {e}")
+
+
 def notify_price_change(listing_id: str, city: str, neighborhood: str, street: str,
                         old_price: int, new_price: int, rooms: str, link_token: str):
     """Send Telegram notification for any price change."""
@@ -388,9 +570,22 @@ def notify_price_change(listing_id: str, city: str, neighborhood: str, street: s
 
 def notify_scrape_summary(run_id: int, run_type: str, pages: int, total_pages: int,
                           new_count: int, updated: int, price_changes: int, duration_min: int):
-    """Log scrape summary. No longer sends Telegram per-cycle — batched into weekly digest."""
+    """Send Telegram summary after each city scrape."""
     logger.info(f"Scrape #{run_id} summary: type={run_type}, pages={pages}/{total_pages}, "
                 f"new={new_count}, updated={updated}, price_changes={price_changes}, duration={duration_min}m")
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    city = run_type.replace("city:", "") if run_type.startswith("city:") else run_type
+    lines = [
+        f"🏙 <b>{city}</b> — סריקה #{run_id} הסתיימה",
+        f"📄 עמודים: {pages}/{total_pages}",
+        f"🆕 מודעות חדשות: <b>{new_count}</b>",
+        f"🔄 עדכונים: {updated}",
+    ]
+    if price_changes:
+        lines.append(f"💰 שינויי מחיר: {price_changes}")
+    lines.append(f"⏱ משך: {duration_min} דקות")
+    send_telegram("\n".join(lines))
 
 
 def send_weekly_digest():
@@ -729,26 +924,42 @@ def save_listings(listings: list[dict], run_id: int) -> tuple[int, int, int]:
     finally:
         conn.close()
 
-    # Send subscription-based Telegram alerts
+    # Send individual Telegram + WhatsApp alert for each new listing
+    for listing in new_listings_for_alert:
+        try:
+            send_new_listing_telegram(listing)
+            send_new_listing_whatsapp(listing)
+            time.sleep(0.4)  # stay under Telegram's ~30 msg/min private chat limit
+        except Exception as e:
+            logger.warning(f"New listing alert failed: {e}")
+
+    # Send subscription-based Telegram alerts (price drops etc.)
     try:
-        send_subscription_alerts(new_listings_for_alert, price_changed_for_alert)
+        send_subscription_alerts([], price_changed_for_alert)
     except Exception as e:
         logger.warning(f"Subscription alerts failed: {e}")
 
     return new_count, updated_count, price_changes
 
 
-def mark_inactive_listings_by_run(run_started_at):
-    """Mark listings not seen during a full scrape as inactive.
-    Uses the run's start time to find which listings were updated during this run."""
+def mark_inactive_listings_by_run(run_started_at, city_name: str = None):
+    """Mark listings not seen in this scrape run as inactive.
+    If city_name is given, only marks that city's listings."""
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("""
-            UPDATE listings
-            SET is_active = FALSE
-            WHERE is_active = TRUE AND last_seen_at < %s
-        """, (run_started_at,))
+        if city_name:
+            cur.execute("""
+                UPDATE listings
+                SET is_active = FALSE
+                WHERE is_active = TRUE AND last_seen_at < %s AND city = %s
+            """, (run_started_at, city_name))
+        else:
+            cur.execute("""
+                UPDATE listings
+                SET is_active = FALSE
+                WHERE is_active = TRUE AND last_seen_at < %s
+            """, (run_started_at,))
         affected = cur.rowcount
         conn.commit()
         cur.close()
@@ -756,7 +967,8 @@ def mark_inactive_listings_by_run(run_started_at):
         conn.close()
 
     if affected > 0:
-        logger.info(f"Marked {affected} listings as inactive (not seen since {run_started_at})")
+        scope = f"city={city_name}" if city_name else "all cities"
+        logger.info(f"Marked {affected} listings as inactive ({scope}, not seen since {run_started_at})")
 
 
 def start_scrape_run(run_type: str = "full") -> int:
@@ -913,10 +1125,16 @@ class Yad2Scraper:
             return True
         return False
 
-    def _fetch_page(self, page: int) -> Optional[dict]:
-        """Fetch a single page via API."""
+    def _fetch_page(self, page: int, city_code: str = None, min_rooms=None) -> Optional[dict]:
+        """Fetch a single page via API, optionally filtered by city and min rooms."""
         url = "https://www.yad2.co.il/api/pre-load/getFeedIndex/realestate/rent"
-        params = {"page": str(page)} if page > 1 else {}
+        params = {}
+        if page > 1:
+            params["page"] = str(page)
+        if city_code:
+            params["city"] = city_code
+        if min_rooms is not None:
+            params["rooms"] = str(int(min_rooms))
         headers = self._headers(is_api=True, platform=self.current_platform)
 
         try:
@@ -1322,88 +1540,192 @@ class Yad2Scraper:
                             total_price_changes, "failed", str(e))
             raise
 
+    def run_city_scrape(self, city_name: str, city_code: str, min_rooms=None) -> dict:
+        """Scrape all rental listings for one city only."""
+        run_id = start_scrape_run(run_type=f"city:{city_name}")
+        pages_scraped = 0
+        pages_failed = 0
+        total_new = 0
+        total_updated = 0
+        total_price_changes = 0
+        total_listings_found = 0
+        scraped_pages: set = set()
+        total_pages = 0
+        run_started_at = datetime.now(timezone.utc)
+
+        rooms_label = f", min_rooms={int(min_rooms)}" if min_rooms else ""
+        logger.info(f"Starting city scrape: {city_name} (code={city_code}{rooms_label}), run #{run_id}")
+
+        try:
+            if not self._new_session():
+                raise Exception("Cannot create initial session")
+            time.sleep(random.uniform(2, 4))
+
+            # Page 1 to discover total_pages for this city
+            data = self._fetch_page(1, city_code=city_code, min_rooms=min_rooms)
+            if not data:
+                raise Exception(f"Cannot fetch page 1 for city {city_name}")
+
+            listings = self._extract_listings(data)
+            pages_scraped += 1
+            scraped_pages.add(1)
+            total_listings_found += len(listings)
+            total_pages = self._get_total_pages(data)
+            logger.info(f"{city_name}: page 1 → {len(listings)} listings, total pages={total_pages}")
+
+            new, updated, price_changes = save_listings(listings, run_id)
+            total_new += new
+            total_updated += updated
+            total_price_changes += price_changes
+
+            update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                   total_listings_found, total_new, total_updated,
+                                   total_price_changes, 1, scraped_pages, total_pages)
+
+            # Scrape remaining pages
+            remaining = list(range(2, total_pages + 1))
+            random.shuffle(remaining)
+            attempt = 0
+
+            while remaining and attempt < MAX_RETRIES:
+                attempt += 1
+                if attempt > 1:
+                    random.shuffle(remaining)
+
+                batches = [remaining[i:i+PAGES_PER_SESSION]
+                          for i in range(0, len(remaining), PAGES_PER_SESSION)]
+                next_remaining = []
+
+                for batch_idx, batch in enumerate(batches):
+                    if batch_idx > 0 or attempt > 1:
+                        cooldown = random.uniform(*DELAY_BETWEEN_BATCHES)
+                        logger.info(f"{city_name}: cooldown {cooldown:.0f}s before batch {batch_idx+1}/{len(batches)}")
+                        time.sleep(cooldown)
+
+                    if not self._new_session():
+                        next_remaining.extend(batch)
+                        continue
+
+                    time.sleep(random.uniform(2, 4))
+                    batch_blocked = False
+
+                    for page in batch:
+                        if batch_blocked:
+                            next_remaining.append(page)
+                            continue
+
+                        time.sleep(random.uniform(*DELAY_WITHIN_BATCH))
+                        page_data = self._fetch_page(page, city_code=city_code, min_rooms=min_rooms)
+
+                        if page_data is None:
+                            next_remaining.append(page)
+                            batch_blocked = True
+                            pages_failed += 1
+                            continue
+
+                        page_listings = self._extract_listings(page_data)
+                        pages_scraped += 1
+                        scraped_pages.add(page)
+                        total_listings_found += len(page_listings)
+
+                        new, updated, price_changes = save_listings(page_listings, run_id)
+                        total_new += new
+                        total_updated += updated
+                        total_price_changes += price_changes
+
+                        update_scrape_progress(run_id, pages_scraped, pages_failed,
+                                               total_listings_found, total_new, total_updated,
+                                               total_price_changes, page, scraped_pages)
+
+                        logger.info(f"{city_name} page {page}/{total_pages}: "
+                                   f"{len(page_listings)} listings (new={new}, updated={updated})")
+
+                remaining = next_remaining
+
+            # Mark listings in this city not seen during this run as inactive
+            success_rate = pages_scraped / total_pages if total_pages > 0 else 0
+            if success_rate >= 0.8:
+                mark_inactive_listings_by_run(run_started_at, city_name=city_name)
+            else:
+                logger.warning(f"{city_name}: skipping mark_inactive, only {pages_scraped}/{total_pages} pages scraped")
+
+            finish_scrape_run(run_id, total_pages, pages_scraped, len(remaining),
+                             total_listings_found, total_new, total_updated,
+                             total_price_changes, "completed")
+
+            logger.info(f"{city_name} scrape #{run_id} done: {pages_scraped}/{total_pages} pages, "
+                       f"{total_new} new, {total_updated} updated, {total_price_changes} price changes")
+
+            return {
+                "run_id": run_id,
+                "city": city_name,
+                "city_code": city_code,
+                "total_pages": total_pages,
+                "pages_scraped": pages_scraped,
+                "pages_failed": len(remaining),
+                "listings_found": total_listings_found,
+                "listings_new": total_new,
+                "listings_updated": total_updated,
+                "price_changes": total_price_changes,
+                "status": "completed",
+                "run_type": f"city:{city_name}",
+            }
+
+        except Exception as e:
+            logger.error(f"{city_name} scrape failed: {e}")
+            finish_scrape_run(run_id, total_pages, pages_scraped, pages_failed,
+                             total_listings_found, total_new, total_updated,
+                             total_price_changes, "failed", str(e))
+            raise
+
 
 # ─── MAIN LOOP ──────────────────────────────────────────────────────────────────
 
 def main():
     logger.info("=" * 60)
-    logger.info("Yad2 Scraper Service Starting")
+    logger.info("Yad2 City Scraper Service Starting")
     logger.info(f"Scrape interval: {SCRAPE_INTERVAL_SECONDS}s")
     logger.info(f"Pages per session: {PAGES_PER_SESSION}")
-    logger.info(f"Smart stop threshold: {SMART_STOP_THRESHOLD} pages")
-    logger.info(f"Full scrape every: {FULL_SCRAPE_EVERY} runs")
     logger.info("=" * 60)
 
-    # Initialize database
     init_db()
-
-    scraper = Yad2Scraper()
-    force_full = os.environ.get("FORCE_FULL_SCRAPE", "").lower() in ("1", "true", "yes")
-
-    # Restore run_counter from DB
-    run_counter = int(get_state("run_counter", "0"))
-    logger.info(f"Restored run_counter={run_counter} from DB")
-
-    # Clean up stale runs with no progress, then check for resumable ones
+    init_default_cities()
     cleanup_stale_runs()
 
-    # One-time fix: re-activate listings wrongly marked inactive by incomplete full scrape
-    # Run #14 only scraped 163/833 pages but still called mark_inactive, deactivating ~17k listings
-    if get_state("fix_reactivate_v1", "0") == "0":
-        conn = get_db_connection()
-        try:
-            cur = conn.cursor()
-            cur.execute("UPDATE listings SET is_active = TRUE WHERE is_active = FALSE")
-            reactivated = cur.rowcount
-            conn.commit()
-            cur.close()
-        finally:
-            conn.close()
-        set_state("fix_reactivate_v1", "1")
-        if reactivated > 0:
-            logger.info(f"One-time fix: re-activated {reactivated} listings wrongly marked inactive")
-
-    interrupted = get_interrupted_run()
-    if interrupted:
-        logger.info(f"Found interrupted {interrupted['run_type']} scrape run #{interrupted['run_id']} "
-                    f"({interrupted['pages_scraped']}/{interrupted['total_pages']} pages done)")
-        try:
-            if interrupted["run_type"] == "smart":
-                result = scraper.run_smart_scrape(resume=interrupted)
-            else:
-                result = scraper.run_full_scrape(resume=interrupted)
-            logger.info(f"Resumed scrape completed: {result}")
-        except Exception as e:
-            logger.error(f"Resume scrape error: {e}")
-
-        run_counter += 1
-        set_state("run_counter", str(run_counter))
+    scraper = Yad2Scraper()
+    last_alive_sent = 0  # epoch seconds; 0 ensures first send on startup
+    ALIVE_INTERVAL = 3 * 3600  # 3 hours
 
     while True:
-        try:
-            completed_runs = get_completed_run_count()
-            is_first_run = completed_runs == 0
-            is_full_cycle = run_counter % FULL_SCRAPE_EVERY == 0
+        cities = get_selected_cities()
+        if not cities:
+            logger.warning("No active cities configured. Add cities via the API. Sleeping...")
+            time.sleep(SCRAPE_INTERVAL_SECONDS)
+            continue
 
-            if force_full or is_first_run or is_full_cycle:
-                reason = "FORCE_FULL_SCRAPE env" if force_full else ("first run ever" if is_first_run else f"every {FULL_SCRAPE_EVERY} runs")
-                logger.info(f"Starting FULL scrape (reason: {reason})...")
-                result = scraper.run_full_scrape()
-                force_full = False
-            else:
-                logger.info(f"Starting SMART scrape (run {run_counter}, next full at {((run_counter // FULL_SCRAPE_EVERY) + 1) * FULL_SCRAPE_EVERY})...")
-                result = scraper.run_smart_scrape()
+        logger.info(f"Starting scrape cycle for {len(cities)} city/cities: {[c['city_name'] for c in cities]}")
 
-            logger.info(f"Scrape completed: {result}")
-        except Exception as e:
-            logger.error(f"Scrape error: {e}")
+        for city in cities:
+            try:
+                result = scraper.run_city_scrape(city["city_name"], city["city_code"], min_rooms=city.get("min_rooms"))
+                logger.info(f"Done: {result}")
+            except Exception as e:
+                logger.error(f"City scrape error ({city['city_name']}): {e}")
 
-        # Check if it's time to send the weekly digest
+            # Brief pause between cities
+            if city != cities[-1]:
+                pause = random.uniform(15, 30)
+                logger.info(f"Pausing {pause:.0f}s before next city...")
+                time.sleep(pause)
+
         maybe_send_weekly_digest()
 
-        run_counter += 1
-        set_state("run_counter", str(run_counter))
-        logger.info(f"Sleeping {SCRAPE_INTERVAL_SECONDS}s until next scrape...")
+        now = time.time()
+        if now - last_alive_sent >= ALIVE_INTERVAL:
+            send_whatsapp("✅ Yad2 scraper alive")
+            last_alive_sent = now
+
+        logger.info(f"All cities done. Sleeping {SCRAPE_INTERVAL_SECONDS}s until next cycle...")
         time.sleep(SCRAPE_INTERVAL_SECONDS)
 
 
