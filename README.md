@@ -2,6 +2,17 @@
 
 Production scraper service for yad2.co.il real estate rentals. Runs on Railway with PostgreSQL.
 
+## Ecosystem
+
+This repo is part of a two-service system:
+
+| Repo | Role |
+|------|------|
+| **yad2-scraper-service** (this repo) | Scrapes Yad2.co.il, stores listings in PostgreSQL, exposes REST API |
+| [**yad2-whatsapp-bot**](https://github.com/avishaynaim/yad2-whatsapp-bot) | WhatsApp bot — listens to a group, answers questions about listings using Claude AI + the shared PostgreSQL DB |
+
+Both services share the same PostgreSQL database. The bot calls Claude (via CLI) with a system prompt that queries the DB directly using `psql`.
+
 ## Features
 
 - **Full site scraping**: Scrapes ALL rental listings from yad2.co.il/realestate/rent
