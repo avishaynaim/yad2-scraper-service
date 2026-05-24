@@ -213,9 +213,11 @@ def init_db():
                 city_name VARCHAR(100) NOT NULL UNIQUE,
                 city_code VARCHAR(20) NOT NULL,
                 active BOOLEAN DEFAULT TRUE,
-                added_at TIMESTAMP DEFAULT NOW()
+                added_at TIMESTAMP DEFAULT NOW(),
+                min_rooms REAL
             );
         """)
+        cur.execute("ALTER TABLE city_subscriptions ADD COLUMN IF NOT EXISTS min_rooms REAL;")
 
         conn.commit()
         cur.close()
@@ -472,13 +474,13 @@ def send_new_listing_telegram(listing: dict):
         logger.warning(f"New listing Telegram failed: {e}")
 
 
-def send_whatsapp(message: str, phone: str = None, retries: int = 4, retry_delay: int = 20):
-    """Send a WhatsApp message via the local Baileys sender service.
-    If phone is None, sends to the configured group.
-    Retries on connection failure to handle sender restarts."""
+def send_whatsapp(message: str, phone: str = None, image_url: str = None, retries: int = 4, retry_delay: int = 20):
+    """Send a WhatsApp message (optionally with image) via the local Baileys sender service."""
     payload = {"message": message}
     if phone:
         payload["phone"] = phone
+    if image_url:
+        payload["imageUrl"] = image_url
     data = json.dumps(payload).encode()
     for attempt in range(retries):
         try:
@@ -498,7 +500,7 @@ def send_whatsapp(message: str, phone: str = None, retries: int = 4, retry_delay
 
 
 def send_new_listing_whatsapp(listing: dict):
-    """Send a WhatsApp message for a single new listing to the group (or individual numbers)."""
+    """Send a WhatsApp message for a single new listing to the group."""
     try:
         city = listing.get("city", "")
         neighborhood = listing.get("neighborhood", "")
@@ -509,6 +511,10 @@ def send_new_listing_whatsapp(listing: dict):
         price = listing.get("price_numeric")
         link_token = listing.get("link_token") or listing.get("id", "")
         is_merchant = listing.get("is_merchant", False)
+        coords = listing.get("coordinates") or {}
+        lat = coords.get("latitude")
+        lon = coords.get("longitude")
+        images = listing.get("images_urls") or ([listing["image_url"]] if listing.get("image_url") else [])
 
         location = ", ".join(filter(None, [city, neighborhood, street]))
         price_str = f"₪{price:,}" if price else "לא צוין"
@@ -518,10 +524,24 @@ def send_new_listing_whatsapp(listing: dict):
             f"קומה {floor}" if floor else None,
             "סוכן" if is_merchant else "פרטי",
         ]))
-        link = f"https://www.yad2.co.il/item/{link_token}"
-        msg = f"🏠 דירה חדשה\n📍 {location}\n🔹 {details}\n💰 {price_str}/חודש\n{link}"
+        yad2_link = f"https://www.yad2.co.il/item/{link_token}"
 
-        # Check if a group exists — prefer group, fall back to individual numbers
+        if lat and lon:
+            maps_link = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lon}"
+        else:
+            query = urllib.parse.quote(f"{street} {city} ישראל")
+            maps_link = f"https://maps.google.com/?q={query}"
+
+        msg = (
+            f"🏠 דירה חדשה\n"
+            f"📍 {location}\n"
+            f"🔹 {details}\n"
+            f"💰 {price_str}/חודש\n"
+            f"🔗 {yad2_link}\n"
+            f"🗺 {maps_link}"
+        )
+
+        # Check group
         try:
             group_resp = urllib.request.urlopen(f"{WHATSAPP_SENDER_URL}/group", timeout=5)
             group_data = json.loads(group_resp.read())
@@ -529,12 +549,23 @@ def send_new_listing_whatsapp(listing: dict):
         except Exception:
             group_jid = None
 
-        if group_jid:
-            send_whatsapp(msg)
-        else:
-            for phone in WHATSAPP_NUMBERS:
-                send_whatsapp(msg, phone=phone)
+        if not group_jid:
+            return
+
+        # Fetch all images from the item API
+        all_images = fetch_all_item_images(link_token)
+        if not all_images:
+            all_images = images  # fallback to feed images
+
+        # Send first image with full caption, then remaining images silently
+        if all_images:
+            send_whatsapp(msg, image_url=all_images[0])
+            for img_url in all_images[1:]:
                 time.sleep(0.5)
+                send_whatsapp("", image_url=img_url)
+        else:
+            send_whatsapp(msg)
+
     except Exception as e:
         logger.warning(f"New listing WhatsApp failed: {e}")
 
@@ -1054,6 +1085,28 @@ def finish_scrape_run(run_id: int, total_pages: int, pages_scraped: int,
 
 # ─── SCRAPER ────────────────────────────────────────────────────────────────────
 
+def fetch_all_item_images(link_token: str) -> list[str]:
+    """Fetch all image URLs for a listing from the Yad2 item API."""
+    try:
+        session = curl_requests.Session(impersonate="chrome131")
+        session.get("https://www.yad2.co.il/", timeout=15)
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://www.yad2.co.il/realestate/rent",
+            "Sec-Ch-Ua": '"Chromium";v="131", "Not_A Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+        }
+        r = session.get(f"https://www.yad2.co.il/api/item/{link_token}", headers=headers, timeout=15)
+        if r.status_code == 200:
+            return r.json().get("images_urls") or []
+    except Exception as e:
+        logger.warning(f"fetch_all_item_images failed for {link_token}: {e}")
+    return []
+
+
 class Yad2Scraper:
     def __init__(self):
         self.session = None
@@ -1192,6 +1245,7 @@ class Yad2Scraper:
                 "merchant_name": item.get("merchant_name", ""),
                 "coordinates": item.get("coordinates", {}),
                 "image_url": images[0] if images else "",
+                "images_urls": images[:5],
                 "images_count": len(images),
                 "amenities": {
                     "parking": item.get("Parking_text", ""),

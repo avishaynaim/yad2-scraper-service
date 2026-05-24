@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yad2 Scraper Dashboard</title>
+    <title>Yad2 רחובות</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -929,7 +929,7 @@
 <header class="header">
     <div class="header-content">
         <div class="header-left">
-            <h1 data-i18n="Yad2 Dashboard">Yad2 Dashboard</h1>
+            <h1 data-i18n="Yad2 Dashboard">Yad2 רחובות</h1>
             <div class="live-badge">
                 <span class="live-dot"></span>
                 <span id="liveStatus" data-i18n="Auto-refresh">Auto-refresh</span>
@@ -940,7 +940,7 @@
                 <div class="header-kpi-value" id="hkTotal">--</div>
                 <div class="header-kpi-label" data-i18n="Active Listings">Active Listings</div>
             </div>
-            <div class="header-kpi">
+            <div class="header-kpi" style="display:none;">
                 <div class="header-kpi-value" id="hkCities">--</div>
                 <div class="header-kpi-label" data-i18n="Cities">Cities</div>
             </div>
@@ -1007,7 +1007,7 @@
                 <div class="kpi-value" id="kpiMax">--</div>
                 <div class="kpi-label" data-i18n="Max Price">Max Price</div>
             </div>
-            <div class="kpi-card accent-info">
+            <div class="kpi-card accent-info" style="display:none;">
                 <div class="kpi-value" id="kpiCities">--</div>
                 <div class="kpi-label" data-i18n="Cities">Cities</div>
             </div>
@@ -1031,12 +1031,12 @@
 
         <div class="charts-row">
             <div class="chart-card">
-                <div class="chart-card-header" data-i18n="Top Cities">Top Cities</div>
-                <div class="chart-card-body" id="topCitiesChart"></div>
-            </div>
-            <div class="chart-card">
                 <div class="chart-card-header" data-i18n="Rooms Distribution">Rooms Distribution</div>
                 <div class="chart-card-body" id="roomsChart"></div>
+            </div>
+            <div class="chart-card" style="display:none;">
+                <div class="chart-card-header" data-i18n="Top Cities">Top Cities</div>
+                <div class="chart-card-body" id="topCitiesChart"></div>
             </div>
         </div>
 
@@ -1094,7 +1094,7 @@
                             <th style="width:30px;"></th>
                             <th style="width:28px;" title="Notes & Status">&#9998;</th>
                             <th style="width:48px;"></th>
-                            <th>
+                            <th style="display:none;">
                                 <div class="th-content">
                                     <div class="th-label" onclick="sortListings('city')">City <span class="sort-icon" data-sort="city">&#9650;</span></div>
                                     <div class="multi-select" data-col="city" data-tbl="listings"></div>
@@ -2017,6 +2017,7 @@ async function loadAnalyticsCities() {
         const sel = document.getElementById('analyticsCityFilter');
         sel.innerHTML = '<option value="">All Cities</option>' +
             d.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)} (${c.listings_count})</option>`).join('');
+        sel.value = 'רחובות';
         await Promise.allSettled([loadNeighborhoodAnalytics(), loadPriceTrends(), loadPriceDropLeaderboard()]);
     } catch (e) {
         console.error('Analytics cities error:', e);
@@ -2499,7 +2500,7 @@ function renderListingsTable(listings) {
             <td><span class="fav-star ${isFav ? 'active' : ''}" data-id="${l.id}" onclick="toggleFavorite(event,'${l.id}')">&#9733;</span></td>
             <td><span class="note-indicator ${noteInd}" title="${noteData?.note ? esc(noteData.note) : 'Add note'}">&#9998;</span>${statusHtml}</td>
             <td>${img}</td>
-            <td>${isNew24h ? '<span class="new-badge">'+t('NEW')+'</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${escJs(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
+            <td style="display:none;">${isNew24h ? '<span class="new-badge">'+t('NEW')+'</span>' : ''}${l.city ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterCity('${escJs(l.city)}')" style="text-decoration:none;color:inherit;" title="Filter by city">${esc(l.city)}</a>` : '-'}</td>
             <td>${l.neighborhood ? `<a href="#" onclick="event.preventDefault();event.stopPropagation();quickFilterNeighborhood('${escJs(l.neighborhood)}')" style="text-decoration:none;color:inherit;" title="Filter by neighborhood">${esc(l.neighborhood)}</a>` : '-'}</td>
             <td>${esc(l.street || '-')}</td>
             <td>${l.rooms || '-'}</td>
@@ -2763,6 +2764,7 @@ async function loadMarketSummary() {
                 const cities = await api('/cities');
                 sel.innerHTML = '<option value="">All Cities</option>' +
                     cities.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)}</option>`).join('');
+                sel.value = 'רחובות';
             } catch (e) {}
         }
 
@@ -3814,6 +3816,7 @@ async function loadMapData() {
                 const cities = await api('/cities');
                 sel.innerHTML = '<option value="">All Cities</option>' +
                     cities.cities.map(c => `<option value="${esc(c.city)}">${esc(c.city)}</option>`).join('');
+                sel.value = 'רחובות';
             } catch (e) {}
         }
 
