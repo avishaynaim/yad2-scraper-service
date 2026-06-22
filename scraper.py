@@ -37,6 +37,11 @@ MAX_RETRIES = 3
 SMART_STOP_THRESHOLD = int(os.environ.get("SMART_STOP_THRESHOLD", "10"))
 FULL_SCRAPE_EVERY = int(os.environ.get("FULL_SCRAPE_EVERY", "6"))
 
+# Connectivity-aware scheduling: when offline, wait for the connection to return and
+# resume immediately, instead of logging a failed run every hour during an outage.
+CONNECTIVITY_RETRY_SECONDS = int(os.environ.get("CONNECTIVITY_RETRY_SECONDS", "120"))  # recheck cadence while offline
+FAILED_CYCLE_RETRY_SECONDS = int(os.environ.get("FAILED_CYCLE_RETRY_SECONDS", "300"))  # short retry after a 0-page cycle
+
 # Telegram notifications
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8273771765:AAEXW66yFCnv7LHlxwvJP2yoLrss0spnrPw")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "2018339906")
@@ -1733,6 +1738,34 @@ class Yad2Scraper:
             raise
 
 
+# ─── CONNECTIVITY ─────────────────────────────────────────────────────────────────
+
+def check_connectivity(timeout: int = 10) -> bool:
+    """Return True if Yad2 is reachable and not hard-blocking right now."""
+    try:
+        s = curl_requests.Session(impersonate="chrome131")
+        r = s.get("https://www.yad2.co.il/", timeout=timeout)
+        return r.status_code < 500 and r.status_code not in (403, 429, 503)
+    except Exception:
+        return False
+
+
+def wait_for_connectivity():
+    """Block until Yad2 is reachable, re-checking every CONNECTIVITY_RETRY_SECONDS.
+    This is what lets the scraper 'listen' for the internet to come back and resume
+    immediately, instead of logging a failed run every hour during an outage."""
+    if check_connectivity():
+        return
+    logger.warning("No connectivity to Yad2 — pausing scrapes and waiting for it to return...")
+    waited = 0
+    while not check_connectivity():
+        time.sleep(CONNECTIVITY_RETRY_SECONDS)
+        waited += CONNECTIVITY_RETRY_SECONDS
+        if waited % (CONNECTIVITY_RETRY_SECONDS * 5) == 0:
+            logger.info(f"Still offline after ~{waited // 60} min — still waiting...")
+    logger.info("Connectivity restored — resuming scraping now.")
+
+
 # ─── MAIN LOOP ──────────────────────────────────────────────────────────────────
 
 def main():
@@ -1757,11 +1790,18 @@ def main():
             time.sleep(SCRAPE_INTERVAL_SECONDS)
             continue
 
+        # Don't burn a cycle failing while offline. Wait for connectivity first, so an
+        # internet/power outage doesn't pile up failed 0-page runs — and the moment the
+        # connection is back we scrape immediately instead of waiting for the next hour.
+        wait_for_connectivity()
+
         logger.info(f"Starting scrape cycle for {len(cities)} city/cities: {[c['city_name'] for c in cities]}")
 
+        cycle_pages = 0
         for city in cities:
             try:
                 result = scraper.run_city_scrape(city["city_name"], city["city_code"], min_rooms=city.get("min_rooms"))
+                cycle_pages += result.get("pages_scraped", 0)
                 logger.info(f"Done: {result}")
             except Exception as e:
                 logger.error(f"City scrape error ({city['city_name']}): {e}")
@@ -1772,15 +1812,26 @@ def main():
                 logger.info(f"Pausing {pause:.0f}s before next city...")
                 time.sleep(pause)
 
-        maybe_send_weekly_digest()
+        if cycle_pages > 0:
+            # A real scrape happened — stamp it (so "last successful scrape" is truthful,
+            # unlike MAX(finished_at) which also counts failed attempts) and wait the full interval.
+            set_state("last_successful_scrape", datetime.now(timezone.utc).isoformat())
+            maybe_send_weekly_digest()
 
-        now = time.time()
-        if now - last_alive_sent >= ALIVE_INTERVAL:
-            send_whatsapp("✅ Yad2 scraper alive")
-            last_alive_sent = now
+            now = time.time()
+            if now - last_alive_sent >= ALIVE_INTERVAL:
+                send_whatsapp("✅ Yad2 scraper alive")
+                last_alive_sent = now
 
-        logger.info(f"All cities done. Sleeping {SCRAPE_INTERVAL_SECONDS}s until next cycle...")
-        time.sleep(SCRAPE_INTERVAL_SECONDS)
+            sleep_seconds = SCRAPE_INTERVAL_SECONDS
+            logger.info(f"All cities done ({cycle_pages} pages scraped). Sleeping {sleep_seconds}s until next cycle...")
+        else:
+            # Had connectivity but still scraped 0 pages (blocked, or the link dropped
+            # mid-cycle). Retry soon instead of waiting a full interval, so we catch up fast.
+            sleep_seconds = min(FAILED_CYCLE_RETRY_SECONDS, SCRAPE_INTERVAL_SECONDS)
+            logger.warning(f"Scrape cycle produced 0 pages — retrying in {sleep_seconds}s (not the full interval)")
+
+        time.sleep(sleep_seconds)
 
 
 if __name__ == "__main__":

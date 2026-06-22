@@ -1,6 +1,10 @@
 # Yad2 Scraper Service
 
-Production scraper service for yad2.co.il real estate rentals. Runs on Railway with PostgreSQL.
+Scraper service for yad2.co.il real estate rentals. Runs **locally** — the scraper, the REST API, and PostgreSQL all run on the same host.
+
+> ⚠️ **This used to run on Railway. It does not anymore — there is no cloud component.**
+> If this machine is off, asleep, or has no internet, **nothing scrapes.** A "scrape" only
+> happens while `scraper.py` is running on this host with a working connection.
 
 ## Ecosystem
 
@@ -42,47 +46,34 @@ Both services share the same PostgreSQL database. The bot calls Claude (via CLI)
     └─────────────────────────────────┘
 ```
 
-## Deploy to Railway
+## Running (local)
 
-### 1. Create Railway Project
-
-```bash
-# Install Railway CLI
-npm install -g @railway/cli
-
-# Login
-railway login
-
-# Create project
-railway init
-```
-
-### 2. Add PostgreSQL
-
-In Railway dashboard:
-- Click "New" → "Database" → "PostgreSQL"
-- Railway auto-sets `DATABASE_URL`
-
-### 3. Configure Environment Variables
+Everything runs on this host. Use the bundled scripts:
 
 ```bash
-railway variables set SCRAPE_INTERVAL_SECONDS=3600
-railway variables set PAGES_PER_SESSION=5
+./start.sh    # starts PostgreSQL, the API (gunicorn), the scraper loop, and the WhatsApp sender
+./stop.sh     # stops them
 ```
 
-### 4. Deploy
+`start.sh` launches:
+- **PostgreSQL** (local) and ensures the `yad2` database + schema exist
+- **API** — `gunicorn api:app` (dashboard + REST endpoints)
+- **scraper.py** — a long-running process that scrapes every `SCRAPE_INTERVAL_SECONDS` (default: hourly)
+- **WhatsApp sender** + watchdog (local Baileys service) for notifications
 
-```bash
-railway up
-```
+### How scheduling actually works
+`scraper.py` runs an infinite loop: scrape all subscribed cities → `sleep(SCRAPE_INTERVAL_SECONDS)` → repeat.
+It is **not** wall-clock cron. It is connectivity-aware: if there's no connection to Yad2 it **waits** for
+the connection to return and then scrapes, instead of logging an hour of failed runs (see below).
 
-### 5. Run Both Services
+### "Last scrape" vs "last *successful* scrape" — important
+A failed cycle still writes a row to `scrape_runs` with a `finished_at` timestamp (status `failed`,
+0 pages). **Do not treat `MAX(finished_at)` as "last successful scrape"** — that's how the WhatsApp bot
+came to report a failed attempt as if it succeeded. Query `WHERE status = 'completed'`, or read the
+`last_successful_scrape` key from the `scraper_state` table, which the scraper now sets only on real scrapes.
 
-In Railway dashboard, create two services from the same repo:
-- **scraper**: Start command = `python scraper.py`
-- **api**: Start command = `gunicorn api:app --bind 0.0.0.0:$PORT`
-
-Or use the Procfile with Railway's process support.
+> The Railway deploy flow was removed. `railway.toml` / `Procfile` / `nixpacks.toml` may still exist
+> in the repo but are no longer used.
 
 ## Environment Variables
 
